@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cowrie Attack Monitoring</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b1120;
+            color: #e5e7eb;
+        }
+
+        .container {
+            width: 92%;
+            max-width: 1400px;
+            margin: auto;
+            padding: 30px 0;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .brand h1 {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .brand p {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            padding: 22px;
+        }
+
+        .card-title {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            padding: 22px;
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            margin-bottom: 18px;
+        }
+
+        .session {
+            border: 1px solid #263244;
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .session-top {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .ip {
+            font-weight: bold;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            background: #3f1d1d;
+            color: #fca5a5;
+        }
+
+        .session-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #1f2937;
+            font-size: 13px;
+        }
+
+        th {
+            color: #94a3b8;
+            font-weight: normal;
+        }
+
+        td {
+            color: #dbeafe;
+        }
+
+        code {
+            color: #93c5fd;
+            background: #0f172a;
+            padding: 3px 6px;
+            border-radius: 5px;
+        }
+
+        .ai-box {
+            border: 1px solid #334155;
+            border-radius: 12px;
+            background: #0f172a;
+            padding: 18px;
+        }
+
+        .severity {
+            display: inline-block;
+            background: #7f1d1d;
+            color: #fecaca;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+
+        .ai-box p {
+            color: #cbd5e1;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .command-list {
+            max-height: 330px;
+            overflow-y: auto;
+        }
+
+        .command {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 10px 0;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        .timestamp {
+            color: #64748b;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <header>
+        <div class="brand">
+            <h1>🛡️ Cowrie Attack Monitoring</h1>
+            <p>Honeypot-Based Attack Monitoring System</p>
+        </div>
+
+        <div class="status">
+            <span class="dot"></span>
+            Cowrie Online
+        </div>
+    </header>
+
+
+    <section class="cards">
+
+        <div class="card">
+            <div class="card-title">TOTAL SESSIONS</div>
+            <div class="card-value">{{ total_sessions }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">LOGIN ATTEMPTS</div>
+            <div class="card-value">{{ total_logins }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">COMMANDS CAPTURED</div>
+            <div class="card-value">{{ total_commands }}</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">UNIQUE ATTACKERS</div>
+            <div class="card-value">{{ unique_attackers }}</div>
+        </div>
+
+    </section>
+
+
+    <div class="grid">
+
+        <section class="panel">
+            <h2>Recent Attack Sessions</h2>
+
+            {% for s in sessions %}
+            <div class="session">
+
+                <div class="session-top">
+                    <span class="ip">🌐 {{ s.src_ip }}</span>
+
+                    {% if s.success %}
+                    <span class="badge">LOGIN SUCCESS</span>
+                    {% else %}
+                    <span class="badge">SESSION</span>
+                    {% endif %}
+                </div>
+
+                <div class="session-info">
+                    <span>Session: {{ s.session_id }}</span>
+                    <span>User: {{ s.username or "Unknown" }}</span>
+                    <span>Port: {{ s.dst_port }}</span>
+                    <span>Duration: {{ s.duration_ms or 0 }} ms</span>
+                    <span>Started: {{ s.start_time }}</span>
+                </div>
+
+            </div>
+            {% else %}
+            <p>No attack sessions recorded.</p>
+            {% endfor %}
+
+        </section>
+
+
+        <section class="panel">
+            <h2>🧠 AI Attack Summarizer</h2>
+
+            <div class="ai-box">
+
+                <span class="severity">HIGH SEVERITY</span>
+
+                <p>
+                    <strong>Attack Type:</strong> SSH reconnaissance
+                </p>
+
+                <br>
+
+                <p>
+                    An attacker successfully authenticated to the SSH honeypot
+                    and performed system reconnaissance. The observed activity
+                    included identity discovery, privilege enumeration,
+                    operating-system fingerprinting, filesystem exploration,
+                    and user-account enumeration.
+                </p>
+
+                <br>
+
+                <p>
+                    <strong>Observed commands:</strong>
+                    whoami, id, uname -a, ls -la, cat /etc/passwd
+                </p>
+
+                <br>
+
+                <p>
+                    <strong>Recommended mitigation:</strong>
+                    Disable password-based SSH authentication, enforce strong
+                    authentication, restrict SSH exposure, and monitor
+                    repeated login attempts and reconnaissance activity.
+                </p>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+    <section class="panel">
+        <h2>⌨️ Captured Commands</h2>
+
+        <div class="command-list">
+
+            {% for c in commands %}
+            <div class="command">
+                <code>{{ c.input }}</code>
+                <span class="timestamp">{{ c.timestamp }}</span>
+            </div>
+            {% else %}
+            <p>No commands captured.</p>
+            {% endfor %}
+
+        </div>
+    </section>
+
+</div>
+
+</body>
+</html>

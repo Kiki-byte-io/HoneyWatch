@@ -3,3 +3,18 @@
 venv/
 cowrie-env/
 __pycache__/
+
+# Cowrie runtime files
+**/cowrie-env/
+cowrie/var/log/
+cowrie/var/run/
+cowrie/var/lib/
+
+# Secrets
+.env
+.env.*
+
+# Database files
+*.sql
+*.sqlite
+*.db

@@ -1,3 +1,4 @@
+import os
 import glob
 import json
 import mysql.connector
@@ -6,11 +7,11 @@ from datetime import datetime
 DB_CONFIG = {
     "host": "localhost",
     "user": "cowrie_app",
-    "password": "noelstevel1",
+    "password": os.getenv("COWRIE_DB_PASSWORD"),
     "database": "cowrie_logs"
 }
 
-LOG_GLOB = "/home/ngf2255/cowrie/var/log/cowrie/cowrie.json*"
+LOG_GLOB = "/home/kiki-victim/cowrie-honeypot-capture/cowrie/var/log/cowrie/cowrie.json*"
 
 
 def parse_timestamp(ts):
