@@ -18,3 +18,4 @@ cowrie/var/lib/
 *.sql
 *.sqlite
 *.db
+*.pdf

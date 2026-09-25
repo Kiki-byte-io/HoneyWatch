@@ -1,119 +1,95 @@
-
 import requests
-
 from evidence_analyzer import get_evidence
 
-
-evidence = get_evidence()
-
-if evidence is None:
-    print("No Cowrie session found.")
-    exit()
+SUMMARY_CACHE = {}
 
 
-# ---------------------------------------------------------
-# VERIFIED FACTS
-# ---------------------------------------------------------
+def generate_summary(evidence=None):
+    if evidence is None:
+        evidence = get_evidence()
 
-authentication = (
-    f"{evidence['successful_logins']} successful login(s) and "
-    f"{evidence['failed_logins']} failed login(s) were recorded."
-)
+    if evidence is None:
+        return {
+            "summary": "No Cowrie sessions available yet for analysis.",
+            "assessment": "No attack data available yet.",
+            "authentication": "0 logins recorded.",
+            "observed_commands": [],
+            "recon_commands": []
+        }
 
-commands = evidence["commands"]
+    sid = evidence.get("session_id", "default")
+    if sid in SUMMARY_CACHE:
+        return SUMMARY_CACHE[sid]
 
-recon_commands = evidence["reconnaissance_commands"]
-
-
-# ---------------------------------------------------------
-# RULE-BASED OVERALL ASSESSMENT
-# ---------------------------------------------------------
-
-if evidence["failed_logins"] > 0:
-    assessment = (
-        "The session included failed authentication attempts "
-        "followed by observed command activity."
+    authentication = (
+        f"{evidence['successful_logins']} successful login(s) and "
+        f"{evidence['failed_logins']} failed login(s) were recorded."
     )
-else:
-    assessment = (
-        "The session involved successful authentication followed "
-        "by system and account reconnaissance commands. "
-        "No additional attack behavior is supported by the "
-        "available evidence."
-    )
+    commands = evidence.get("commands", [])
+    recon_commands = evidence.get("reconnaissance_commands", [])
 
+    if evidence.get("failed_logins", 0) > 0:
+        assessment = "The session included failed authentication attempts followed by observed command activity."
+    else:
+        assessment = (
+            "The session involved successful authentication followed by system and account reconnaissance commands. "
+            "No additional attack behavior is supported by the available evidence."
+        )
 
-# ---------------------------------------------------------
-# AI NARRATIVE
-# ---------------------------------------------------------
-
-prompt = f"""
+    prompt = f"""
 Write a short professional cybersecurity incident summary.
 
 Use ONLY these verified facts:
 
-Source IP: {evidence['source_ip']}
-Destination port: {evidence['destination_port']}
-Successful logins: {evidence['successful_logins']}
-Failed logins: {evidence['failed_logins']}
+Source IP: {evidence.get('source_ip')}
+Destination port: {evidence.get('destination_port')}
+Successful logins: {evidence.get('successful_logins')}
+Failed logins: {evidence.get('failed_logins')}
 Commands: {commands}
 Reconnaissance commands: {recon_commands}
 
 IMPORTANT:
-Do not invent dates, times, usernames, commands, attack techniques,
-or attacker intent.
-
-Do not claim:
-- brute force
-- credential theft
-- privilege escalation
-- malware
-- persistence
-- unauthorized access
-
-Do not provide an overall security assessment.
-
+Do not invent dates, times, usernames, commands, attack techniques, or attacker intent.
+Do not claim brute force, credential theft, privilege escalation, malware, or persistence unless supported by facts.
 Write one short paragraph describing the observed session.
 """
 
+    ai_narrative = "AI narrative summary generated from verified evidence."
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama3.2:3b",
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0,
+                    "num_predict": 160
+                }
+            },
+            timeout=3
+        )
+        if response.status_code == 200:
+            ai_narrative = response.json().get("response", "").strip()
+        else:
+            ai_narrative = f"Observed session from {evidence.get('source_ip')} with {len(commands)} command(s) executed."
+    except Exception:
+        ai_narrative = f"Observed session from {evidence.get('source_ip')} on port {evidence.get('destination_port')}. Executed {len(commands)} command(s)."
 
-response = requests.post(
-    "http://localhost:11434/api/generate",
-    json={
-        "model": "llama3.2:3b",
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0,
-            "num_predict": 160
-        }
-    },
-    timeout=120
-)
+    result = {
+        "summary": ai_narrative,
+        "assessment": assessment,
+        "authentication": authentication,
+        "observed_commands": commands,
+        "recon_commands": recon_commands
+    }
+
+    SUMMARY_CACHE[sid] = result
+    return result
 
 
-# ---------------------------------------------------------
-# DISPLAY REPORT
-# ---------------------------------------------------------
-
-print("HTTP status:", response.status_code)
-print("\n===== AI ATTACK SUMMARY =====\n")
-
-print("Authentication Activity:")
-print(authentication)
-
-print("\nObserved Activity:")
-print(", ".join(commands))
-
-print("\nReconnaissance Indicators:")
-print(", ".join(recon_commands))
-
-print("\nAI-Generated Summary:")
-
-if response.status_code == 200:
-    print(response.json()["response"].strip())
-else:
-    print("AI summary unavailable.")
-
-print("\nOverall Assessment:")
-print(assessment)
+if __name__ == "__main__":
+    res = generate_summary()
+    print("===== AI ATTACK SUMMARY =====")
+    print("Summary:", res["summary"])
+    print("Assessment:", res["assessment"])

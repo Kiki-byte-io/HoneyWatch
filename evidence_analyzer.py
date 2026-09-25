@@ -2,10 +2,8 @@ import sys
 
 sys.path.append("cowrie")
 
-from database_test import get_latest_session
+from database_test import get_latest_session, get_session_by_id
 
-
-# Known command meanings
 COMMAND_MEANINGS = {
     "whoami": "Identifies the current user account.",
     "id": "Displays the current user's UID, GID, and group memberships.",
@@ -17,64 +15,35 @@ COMMAND_MEANINGS = {
 
 
 def analyze_session(data):
+    if not data or not data.get("session"):
+        return None
 
     session = data["session"]
-    logins = data["logins"]
-    command_records = data["commands"]
+    logins = data.get("logins", [])
+    command_records = data.get("commands", [])
 
-    # Count successful and failed logins
-    successful_logins = sum(
-        1 for login in logins
-        if login["success"] == 1
-    )
+    successful_logins = sum(1 for login in logins if login.get("success") == 1)
+    failed_logins = sum(1 for login in logins if login.get("success") == 0)
 
-    failed_logins = sum(
-        1 for login in logins
-        if login["success"] == 0
-    )
+    commands = [command["input"] for command in command_records if command.get("input")]
 
-    # Extract command strings
-    commands = [
-        command["input"]
-        for command in command_records
-    ]
+    recon_command_list = ["whoami", "id", "uname -a", "ls -la", "cat /etc/passwd"]
+    recon_commands = [cmd for cmd in commands if cmd in recon_command_list]
 
-    # Commands associated with reconnaissance
-    recon_command_list = [
-        "whoami",
-        "id",
-        "uname -a",
-        "ls -la",
-        "cat /etc/passwd"
-    ]
-
-    recon_commands = []
-
-    for command in commands:
-        if command in recon_command_list:
-            recon_commands.append(command)
-
-    # Create explanations for observed commands
     command_analysis = []
-
     for command in commands:
-        if command in COMMAND_MEANINGS:
-            command_analysis.append({
-                "command": command,
-                "meaning": COMMAND_MEANINGS[command]
-            })
+        meaning = COMMAND_MEANINGS.get(command, "Standard interactive shell command.")
+        command_analysis.append({
+            "command": command,
+            "meaning": meaning
+        })
 
-    # Determine authentication status
-    if successful_logins > 0:
-        authentication = "successful"
-    else:
-        authentication = "unsuccessful"
+    authentication = "successful" if successful_logins > 0 else "unsuccessful"
 
-    # Build structured evidence
-    evidence = {
-        "session_id": session["session_id"],
-        "source_ip": session["src_ip"],
-        "destination_port": session["dst_port"],
+    return {
+        "session_id": session.get("session_id"),
+        "source_ip": session.get("src_ip"),
+        "destination_port": session.get("dst_port", 2222),
         "authentication": authentication,
         "successful_logins": successful_logins,
         "failed_logins": failed_logins,
@@ -85,12 +54,12 @@ def analyze_session(data):
         "command_analysis": command_analysis
     }
 
-    return evidence
 
-
-def get_evidence():
-
-    data = get_latest_session()
+def get_evidence(session_id=None):
+    if session_id:
+        data = get_session_by_id(session_id)
+    else:
+        data = get_latest_session()
 
     if data is None:
         return None
@@ -98,11 +67,8 @@ def get_evidence():
     return analyze_session(data)
 
 
-# Only print when this file is executed directly
 if __name__ == "__main__":
-
     evidence = get_evidence()
-
     if evidence:
         print("===== STRUCTURED EVIDENCE =====")
         print(evidence)

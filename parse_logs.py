@@ -1,27 +1,35 @@
 import os
 import glob
 import json
-import mysql.connector
 from datetime import datetime
+from db_client import db
 
-DB_CONFIG = {
-    "host": "localhost",
-    "user": "cowrie_app",
-    "password": os.getenv("COWRIE_DB_PASSWORD"),
-    "database": "cowrie_logs"
-}
-
-LOG_GLOB = "/home/kiki-victim/cowrie-honeypot-capture/cowrie/var/log/cowrie/cowrie.json*"
+LOG_GLOB = os.getenv(
+    "COWRIE_LOG_GLOB",
+    "/home/kiki-victim/cowrie-honeypot-capture/cowrie/var/log/cowrie/cowrie.json*"
+)
+# Also check local path fallback
+LOCAL_LOG_GLOB = os.path.join(os.path.dirname(__file__), "cowrie*.json*")
 
 
 def parse_timestamp(ts):
-    return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ")
+    if not ts:
+        return None
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        try:
+            return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            return ts
 
 
 def load_events(paths):
     events = []
     for path in paths:
-        with open(path, "r") as f:
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -35,12 +43,16 @@ def load_events(paths):
 
 def main():
     log_files = sorted(glob.glob(LOG_GLOB))
+    if not log_files:
+        log_files = sorted(glob.glob(LOCAL_LOG_GLOB))
+    
     print(f"Found {len(log_files)} log files: {log_files}")
+    if not log_files:
+        print("No log files matched glob patterns.")
+        return
+
     events = load_events(log_files)
     print(f"Loaded {len(events)} total events.")
-
-    conn = mysql.connector.connect(**DB_CONFIG)
-    cur = conn.cursor()
 
     sessions = {}
     login_attempts = []
@@ -49,6 +61,10 @@ def main():
     for e in events:
         eid = e.get("eventid", "")
         sid = e.get("session")
+        if not sid:
+            continue
+
+        ts_str = str(parse_timestamp(e.get("timestamp"))) if e.get("timestamp") else None
 
         if eid == "cowrie.session.connect":
             sessions[sid] = {
@@ -56,24 +72,23 @@ def main():
                 "src_ip": e.get("src_ip"),
                 "src_port": e.get("src_port"),
                 "dst_port": e.get("dst_port"),
-                "start_time": parse_timestamp(e["timestamp"]),
+                "start_time": ts_str,
                 "end_time": None,
                 "duration_ms": None
             }
 
         elif eid == "cowrie.session.closed":
             if sid in sessions:
-                sessions[sid]["end_time"] = parse_timestamp(e["timestamp"])
+                sessions[sid]["end_time"] = ts_str
                 sessions[sid]["duration_ms"] = e.get("duration_ms")
             else:
-                print(f"Warning: session.closed for unknown session {sid}, creating stub row")
                 sessions[sid] = {
                     "session_id": sid,
                     "src_ip": None,
                     "src_port": None,
                     "dst_port": None,
                     "start_time": None,
-                    "end_time": parse_timestamp(e["timestamp"]),
+                    "end_time": ts_str,
                     "duration_ms": e.get("duration_ms")
                 }
 
@@ -83,34 +98,26 @@ def main():
                 "username": e.get("username"),
                 "password": e.get("password"),
                 "success": 1 if eid == "cowrie.login.success" else 0,
-                "timestamp": parse_timestamp(e["timestamp"])
+                "timestamp": ts_str
             })
 
         elif eid == "cowrie.command.input":
             commands.append({
                 "session_id": sid,
                 "input": e.get("input"),
-                "timestamp": parse_timestamp(e["timestamp"])
+                "timestamp": ts_str
             })
 
     session_insert = """
         INSERT INTO sessions (session_id, src_ip, src_port, dst_port, start_time, end_time, duration_ms)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            end_time = COALESCE(VALUES(end_time), end_time),
-            duration_ms = COALESCE(VALUES(duration_ms), duration_ms),
-            src_ip = COALESCE(src_ip, VALUES(src_ip)),
-            src_port = COALESCE(src_port, VALUES(src_port)),
-            dst_port = COALESCE(dst_port, VALUES(dst_port)),
-            start_time = COALESCE(start_time, VALUES(start_time))
     """
     for s in sessions.values():
-        cur.execute(session_insert, (
+        db.execute_query(session_insert, (
             s["session_id"], s["src_ip"], s["src_port"], s["dst_port"],
             s["start_time"], s["end_time"], s["duration_ms"]
-        ))
-    conn.commit()
-    print(f"Inserted/updated {len(sessions)} sessions.")
+        ), fetch=None)
+    print(f"Processed {len(sessions)} sessions.")
 
     login_insert = """
         INSERT INTO login_attempts (session_id, username, password, success, timestamp)
@@ -118,12 +125,9 @@ def main():
     """
     inserted_logins = 0
     for l in login_attempts:
-        if l["session_id"] not in sessions:
-            print(f"Skipping login attempt for unknown session {l['session_id']}")
-            continue
-        cur.execute(login_insert, (
+        db.execute_query(login_insert, (
             l["session_id"], l["username"], l["password"], l["success"], l["timestamp"]
-        ))
+        ), fetch=None)
         inserted_logins += 1
 
     command_insert = """
@@ -132,19 +136,12 @@ def main():
     """
     inserted_commands = 0
     for c in commands:
-        if c["session_id"] not in sessions:
-            print(f"Skipping command for unknown session {c['session_id']}")
-            continue
-        cur.execute(command_insert, (
+        db.execute_query(command_insert, (
             c["session_id"], c["input"], c["timestamp"]
-        ))
+        ), fetch=None)
         inserted_commands += 1
 
-    conn.commit()
     print(f"Inserted {inserted_logins} login attempts, {inserted_commands} commands.")
-
-    cur.close()
-    conn.close()
 
 
 if __name__ == "__main__":

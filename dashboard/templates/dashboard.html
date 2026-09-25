@@ -3,9 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cowrie Attack Monitoring</title>
+    <title>HoneyWatch — Honeypot Attack Monitoring & Threat Intelligence System</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-surface: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --border-color: #1e293b;
+            --border-bright: #334155;
+            
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.15);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a855f7;
+
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -13,213 +44,533 @@
         }
 
         body {
-            font-family: Arial, Helvetica, sans-serif;
-            background: #0b1120;
-            color: #e5e7eb;
-        }
-
-        .container {
-            width: 92%;
-            max-width: 1400px;
-            margin: auto;
-            padding: 30px 0;
-        }
-
-        header {
+            font-family: var(--font-main);
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
             display: flex;
-            justify-content: space-between;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-base);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-bright);
+            border-radius: 4px;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 260px;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-bright);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .brand-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border-bright);
+            display: flex;
             align-items: center;
-            margin-bottom: 30px;
+            gap: 12px;
         }
 
-        .brand h1 {
-            font-size: 28px;
-            margin-bottom: 6px;
-        }
-
-        .brand p {
-            color: #94a3b8;
-            font-size: 14px;
-        }
-
-        .status {
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-radius: 10px;
             display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 15px rgba(2, 132, 199, 0.4);
+        }
+
+        .brand-text h1 {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+        }
+
+        .brand-text p {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .nav-menu {
+            padding: 16px 12px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .nav-section-title {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            padding: 12px 12px 6px 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 14px;
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 4px;
+            text-decoration: none;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background: var(--primary-glow);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-bright);
+            font-size: 11px;
+            color: var(--text-dim);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* Main Content */
+        main {
+            margin-left: 260px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        /* Top Navbar */
+        header {
+            height: 64px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-bright);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .header-title-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .page-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .header-status-pill {
+            display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: #111827;
-            border: 1px solid #1f2937;
-            padding: 10px 15px;
-            border-radius: 10px;
-            font-size: 13px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--success);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
         }
 
-        .dot {
-            width: 9px;
-            height: 9px;
+        .status-dot {
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: #22c55e;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
         }
 
-        .cards {
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .last-updated {
+            font-size: 12px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: #0284c7;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: #0369a1;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid var(--border-bright);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .select-input, .text-input {
+            background: var(--bg-card);
+            border: 1px solid var(--border-bright);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            font-family: var(--font-main);
+        }
+
+        .select-input:focus, .text-input:focus {
+            border-color: var(--primary);
+        }
+
+        /* Container Body */
+        .content-body {
+            padding: 28px;
+            flex: 1;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Grid & Cards */
+        .stat-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 18px;
-            margin-bottom: 25px;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-2px);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: #ffffff;
+        }
+
+        .stat-sub {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .grid-half {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
         }
 
         .card {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 14px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
             padding: 22px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .card-title {
-            color: #94a3b8;
-            font-size: 13px;
-            margin-bottom: 12px;
-        }
-
-        .card-value {
-            font-size: 32px;
-            font-weight: bold;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 1.4fr 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .panel {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 14px;
-            padding: 22px;
-        }
-
-        .panel h2 {
-            font-size: 18px;
-            margin-bottom: 18px;
-        }
-
-        .session {
-            border: 1px solid #263244;
-            background: #0f172a;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-
-        .session-top {
+            font-size: 15px;
+            font-weight: 700;
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-
-        .ip {
-            font-weight: bold;
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            background: #3f1d1d;
-            color: #fca5a5;
-        }
-
-        .session-info {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            align-items: center;
             gap: 10px;
-            color: #94a3b8;
-            font-size: 12px;
+        }
+
+        /* Tables */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #1f2937;
             font-size: 13px;
         }
 
         th {
-            color: #94a3b8;
-            font-weight: normal;
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-bright);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         td {
-            color: #dbeafe;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-primary {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.3);
         }
 
         code {
-            color: #93c5fd;
-            background: #0f172a;
+            font-family: var(--font-mono);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--primary);
             padding: 3px 6px;
-            border-radius: 5px;
-        }
-
-        .ai-box {
-            border: 1px solid #334155;
-            border-radius: 12px;
-            background: #0f172a;
-            padding: 18px;
-        }
-
-        .severity {
-            display: inline-block;
-            background: #7f1d1d;
-            color: #fecaca;
-            padding: 5px 10px;
-            border-radius: 6px;
+            border-radius: 4px;
             font-size: 12px;
-            margin-bottom: 12px;
         }
 
-        .ai-box p {
-            color: #cbd5e1;
-            line-height: 1.6;
-            font-size: 14px;
+        /* Drawers & Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
         }
 
-        .command-list {
-            max-height: 330px;
-            overflow-y: auto;
-        }
-
-        .command {
+        .modal-overlay.active {
             display: flex;
+        }
+
+        .modal-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-bright);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-bright);
+            display: flex;
+            align-items: center;
             justify-content: space-between;
-            gap: 20px;
-            padding: 10px 0;
-            border-bottom: 1px solid #1f2937;
         }
 
-        .timestamp {
-            color: #64748b;
-            font-size: 11px;
-            white-space: nowrap;
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
         }
 
-        @media (max-width: 900px) {
-            .cards {
-                grid-template-columns: repeat(2, 1fr);
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: 48px 24px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .empty-text {
+            font-size: 14px;
+            max-width: 450px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 1200px) {
+            .stat-grid {
+                grid-template-columns: repeat(3, 1fr);
             }
-
-            .grid {
+            .grid-2 {
                 grid-template-columns: 1fr;
             }
         }
 
-        @media (max-width: 600px) {
-            .cards {
+        @media (max-width: 768px) {
+            aside {
+                transform: translateX(-100%);
+            }
+            aside.mobile-open {
+                transform: translateX(0);
+            }
+            main {
+                margin-left: 0;
+            }
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .grid-half {
                 grid-template-columns: 1fr;
             }
         }
@@ -228,142 +579,989 @@
 
 <body>
 
-<div class="container">
-
-    <header>
-        <div class="brand">
-            <h1>🛡️ Cowrie Attack Monitoring</h1>
-            <p>Honeypot-Based Attack Monitoring System</p>
+    <!-- Sidebar -->
+    <aside id="sidebar">
+        <div class="brand-header">
+            <div class="brand-icon">🛡️</div>
+            <div class="brand-text">
+                <h1>HONEYWATCH</h1>
+                <p>Honeypot Monitoring System</p>
+            </div>
         </div>
 
-        <div class="status">
-            <span class="dot"></span>
-            Cowrie Online
+        <nav class="nav-menu">
+            <div class="nav-section-title">Navigation</div>
+            <a class="nav-item active" onclick="switchTab('dashboard')">
+                <span class="nav-icon">📊</span> Overview Dashboard
+            </a>
+            <a class="nav-item" onclick="switchTab('attacks')">
+                <span class="nav-icon">🎯</span> Attack Monitor
+            </a>
+            <a class="nav-item" onclick="switchTab('sessions')">
+                <span class="nav-icon">🔗</span> Sessions
+            </a>
+            <a class="nav-item" onclick="switchTab('ips')">
+                <span class="nav-icon">🌐</span> IP Analysis
+            </a>
+            <a class="nav-item" onclick="switchTab('commands')">
+                <span class="nav-icon">⚡</span> Command Analysis
+            </a>
+            <a class="nav-item" onclick="switchTab('credentials')">
+                <span class="nav-icon">🔑</span> Credentials
+            </a>
+            <a class="nav-item" onclick="switchTab('timeline')">
+                <span class="nav-icon">📈</span> Timeline
+            </a>
+            <a class="nav-item" onclick="switchTab('logs')">
+                <span class="nav-icon">📜</span> Log Viewer
+            </a>
+            <a class="nav-item" onclick="switchTab('report')">
+                <span class="nav-icon">📄</span> Executive Report
+            </a>
+            <a class="nav-item" onclick="switchTab('settings')">
+                <span class="nav-icon">⚙️</span> Settings & Architecture
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <p><strong>HoneyWatch v2.0 SOC</strong></p>
+            <p>Defensive Honeypot System</p>
         </div>
-    </header>
+    </aside>
 
+    <!-- Main Section -->
+    <main>
+        <!-- Top Navbar -->
+        <header>
+            <div class="header-title-container">
+                <h2 class="page-title" id="tab-header-title">Overview Dashboard</h2>
+                <div class="header-status-pill" id="status-pill">
+                    <span class="status-dot"></span>
+                    <span id="status-text">System Online</span>
+                </div>
+            </div>
 
-    <section class="cards">
+            <div class="header-controls">
+                <span class="last-updated" id="last-updated-ts">Updated: --:--:--</span>
+                <button class="btn btn-secondary btn-sm" onclick="fetchSummaryData()">
+                    🔄 Refresh
+                </button>
+                <select class="select-input" id="auto-refresh-select" onchange="toggleAutoRefresh(this.value)">
+                    <option value="off">Auto Refresh: Off</option>
+                    <option value="5">Every 5s</option>
+                    <option value="10" selected>Every 10s</option>
+                    <option value="30">Every 30s</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="openExecutiveReport()">
+                    📥 PDF Report
+                </button>
+            </div>
+        </header>
 
-        <div class="card">
-            <div class="card-title">TOTAL SESSIONS</div>
-            <div class="card-value">{{ total_sessions }}</div>
-        </div>
+        <!-- Main Body -->
+        <div class="content-body">
 
-        <div class="card">
-            <div class="card-title">LOGIN ATTEMPTS</div>
-            <div class="card-value">{{ total_logins }}</div>
-        </div>
+            <!-- TAB 1: OVERVIEW DASHBOARD -->
+            <div class="tab-content active" id="tab-dashboard">
 
-        <div class="card">
-            <div class="card-title">COMMANDS CAPTURED</div>
-            <div class="card-value">{{ total_commands }}</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">UNIQUE ATTACKERS</div>
-            <div class="card-value">{{ unique_attackers }}</div>
-        </div>
-
-    </section>
-
-
-    <div class="grid">
-
-        <section class="panel">
-            <h2>Recent Attack Sessions</h2>
-
-            {% for s in sessions %}
-            <div class="session">
-
-                <div class="session-top">
-                    <span class="ip">🌐 {{ s.src_ip }}</span>
-
-                    {% if s.success %}
-                    <span class="badge">LOGIN SUCCESS</span>
-                    {% else %}
-                    <span class="badge">SESSION</span>
-                    {% endif %}
+                <!-- 6 Top Stat Cards -->
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL ATTACK EVENTS</div>
+                        <div class="stat-value" id="stat-tot-events">0</div>
+                        <div class="stat-sub">Aggregated Telemetry</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">UNIQUE SOURCE IPs</div>
+                        <div class="stat-value" id="stat-unique-ips">0</div>
+                        <div class="stat-sub">Distinct Attackers</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL SESSIONS</div>
+                        <div class="stat-value" id="stat-tot-sessions">0</div>
+                        <div class="stat-sub">Captured Connections</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">LOGIN ATTEMPTS</div>
+                        <div class="stat-value" id="stat-tot-logins">0</div>
+                        <div class="stat-sub">Authentication Trials</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">COMMANDS CAPTURED</div>
+                        <div class="stat-value" id="stat-tot-commands">0</div>
+                        <div class="stat-sub">Shell Execution Logs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">AUTOMATION SCORE</div>
+                        <div class="stat-value" id="stat-bot-score">0/100</div>
+                        <div class="stat-sub" id="stat-bot-assessment">Evaluating...</div>
+                    </div>
                 </div>
 
-                <div class="session-info">
-                    <span>Session: {{ s.session_id }}</span>
-                    <span>User: {{ s.username or "Unknown" }}</span>
-                    <span>Port: {{ s.dst_port }}</span>
-                    <span>Duration: {{ s.duration_ms or 0 }} ms</span>
-                    <span>Started: {{ s.start_time }}</span>
+                <!-- Main Overview Charts -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">📈 Attack Activity Timeline</span>
+                            <span class="badge badge-primary">Hourly Frequency</span>
+                        </div>
+                        <div style="height: 260px; position: relative;">
+                            <canvas id="chart-timeline"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🌐 Top Source IPs</span>
+                            <span class="badge badge-primary">By Session Volume</span>
+                        </div>
+                        <div style="height: 260px; position: relative;">
+                            <canvas id="chart-top-ips"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Charts & AI Classifier -->
+                <div class="grid-half">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">⚡ Common Executed Commands</span>
+                        </div>
+                        <div style="height: 220px; position: relative;">
+                            <canvas id="chart-top-commands"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🧠 Behavioral Bot vs Human Classifier</span>
+                            <span class="badge badge-warning" id="classifier-badge">Score: 0</span>
+                        </div>
+                        <div id="classifier-panel">
+                            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;" id="classifier-assessment-text">
+                                Analyzing session telemetry...
+                            </p>
+                            <div style="background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                <strong style="font-size: 12px; color: var(--primary);">Behavioral Indicators:</strong>
+                                <ul id="classifier-indicators-list" style="font-size: 12px; color: var(--text-main); margin-left: 18px; margin-top: 6px; line-height: 1.6;">
+                                    <li>Monitoring Honeypot Activity...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Attacks Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">🎯 Recent Attack Events</span>
+                        <button class="btn btn-secondary btn-sm" onclick="switchTab('attacks')">View All Events</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Start Time</th>
+                                    <th>Source IP</th>
+                                    <th>Session ID</th>
+                                    <th>Port</th>
+                                    <th>Username</th>
+                                    <th>Auth Status</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-recent-sessions">
+                                <tr><td colspan="7" class="empty-state">Loading recent telemetry...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
             </div>
-            {% else %}
-            <p>No attack sessions recorded.</p>
-            {% endfor %}
 
-        </section>
-
-
-        <section class="panel">
-            <h2>🧠 AI Attack Summarizer</h2>
-
-            <div class="ai-box">
-
-                <span class="severity">HIGH SEVERITY</span>
-
-                <p>
-                    <strong>Attack Type:</strong> SSH reconnaissance
-                </p>
-
-                <br>
-
-                <p>
-                    An attacker successfully authenticated to the SSH honeypot
-                    and performed system reconnaissance. The observed activity
-                    included identity discovery, privilege enumeration,
-                    operating-system fingerprinting, filesystem exploration,
-                    and user-account enumeration.
-                </p>
-
-                <br>
-
-                <p>
-                    <strong>Observed commands:</strong>
-                    whoami, id, uname -a, ls -la, cat /etc/passwd
-                </p>
-
-                <br>
-
-                <p>
-                    <strong>Recommended mitigation:</strong>
-                    Disable password-based SSH authentication, enforce strong
-                    authentication, restrict SSH exposure, and monitor
-                    repeated login attempts and reconnaissance activity.
-                </p>
-
+            <!-- TAB 2: ATTACK MONITOR -->
+            <div class="tab-content" id="tab-attacks">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">🎯 Security Event Log</span>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" class="text-input" id="attack-search" placeholder="🔍 Search IP, session, command..." onkeyup="fetchAttacks(1)">
+                            <select class="select-input" id="attack-event-filter" onchange="fetchAttacks(1)">
+                                <option value="">All Event Types</option>
+                                <option value="session_connect">Session Connect</option>
+                                <option value="login_success">Login Success</option>
+                                <option value="login_failed">Login Failed</option>
+                                <option value="command_input">Command Input</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="exportCSV()">📥 Export CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Event Type</th>
+                                    <th>Source IP</th>
+                                    <th>Dest Port</th>
+                                    <th>Session ID</th>
+                                    <th>Details / Input Payload</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-attacks">
+                                <tr><td colspan="7" class="empty-state">Loading attack events...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+                        <span style="font-size: 12px; color: var(--text-dim);" id="attack-pagination-info">Showing 0 of 0 events</span>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" id="btn-prev-page" onclick="changeAttackPage(-1)">Previous</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-next-page" onclick="changeAttackPage(1)">Next</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-        </section>
+            <!-- TAB 3: SESSIONS -->
+            <div class="tab-content" id="tab-sessions">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">🔗 Honeypot Connection Sessions</span>
+                        <input type="text" class="text-input" id="session-search" placeholder="🔍 Search Session ID or IP..." onkeyup="fetchSessions(1)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Session ID</th>
+                                    <th>Source IP</th>
+                                    <th>Src Port</th>
+                                    <th>Dst Port</th>
+                                    <th>Start Time</th>
+                                    <th>Duration</th>
+                                    <th>Logins</th>
+                                    <th>Commands</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-sessions">
+                                <tr><td colspan="9" class="empty-state">Loading session records...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
+            <!-- TAB 4: IP ANALYSIS -->
+            <div class="tab-content" id="tab-ips">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">🌐 Source IP Intelligence & Threat Profiling</span>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Source IP Address</th>
+                                    <th>Total Sessions</th>
+                                    <th>Login Attempts</th>
+                                    <th>Commands Executed</th>
+                                    <th>Total Telemetry Events</th>
+                                    <th>First Seen</th>
+                                    <th>Last Seen</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-ips">
+                                <tr><td colspan="8" class="empty-state">Loading IP records...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: COMMAND ANALYSIS -->
+            <div class="tab-content" id="tab-commands">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">⚡ Captured Command Payloads & Purpose Intent</span>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Command Payload String</th>
+                                    <th>Frequency Count</th>
+                                    <th>Identified Intent / Meaning</th>
+                                    <th>Unique Sessions</th>
+                                    <th>Last Executed Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-commands">
+                                <tr><td colspan="5" class="empty-state">Loading command telemetry...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 6: CREDENTIALS -->
+            <div class="tab-content" id="tab-credentials">
+                <div class="grid-half">
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🔑 Attempted Usernames</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Total Attempts</th>
+                                        <th>Successful</th>
+                                        <th>Failed</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-usernames">
+                                    <tr><td colspan="4" class="empty-state">Loading credentials...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🔒 Attempted Passwords</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Password String</th>
+                                        <th>Attempt Frequency</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-passwords">
+                                    <tr><td colspan="2" class="empty-state">Loading password frequency...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 7: TIMELINE -->
+            <div class="tab-content" id="tab-timeline">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">📈 Chronological Threat Event Timeline</span>
+                    </div>
+                    <div style="height: 400px; position: relative;">
+                        <canvas id="chart-full-timeline"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 8: LOG VIEWER -->
+            <div class="tab-content" id="tab-logs">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">📜 Cowrie Structured JSON Telemetry Logs</span>
+                    </div>
+                    <pre id="log-viewer-box" style="background: rgba(0,0,0,0.4); padding: 18px; border-radius: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--primary); max-height: 500px; overflow-y: auto;">Loading logs...</pre>
+                </div>
+            </div>
+
+            <!-- TAB 9: EXECUTIVE REPORT -->
+            <div class="tab-content" id="tab-report">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">📄 Executive Security Summary Generator</span>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 16px;">
+                            Generate a publication-grade executive threat intelligence report detailing honeypot telemetry, attacker metrics, top IP vectors, and system assessments.
+                        </p>
+                        <div style="display: flex; gap: 14px; align-items: center;">
+                            <label style="font-size: 13px; font-weight: 600;">Select Time Range:</label>
+                            <select class="select-input" id="report-range-select">
+                                <option value="all" selected>All Available Telemetry Data</option>
+                                <option value="24h">Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="downloadPDFReport()">
+                                📥 Download Executive PDF Report
+                            </button>
+                            <button class="btn btn-secondary" onclick="previewReportModal()">
+                                👁️ Preview Report Summary
+                            </button>
+                        </div>
+                    </div>
+                    <div id="report-preview-container" style="background: var(--bg-surface); border: 1px solid var(--border-bright); border-radius: 12px; padding: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--primary);">HoneyWatch Executive Report Overview</h3>
+                        <p style="font-size: 13px; color: var(--text-muted);">Click 'Preview Report Summary' to preview compiled report metrics or 'Download Executive PDF Report' to generate the official PDF document.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 10: SETTINGS & ARCHITECTURE -->
+            <div class="tab-content" id="tab-settings">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">⚙️ System Architecture & Telemetry Pipeline</span>
+                    </div>
+                    <div style="padding: 10px 0;">
+                        <h3 style="font-size: 15px; margin-bottom: 12px; color: var(--primary);">HoneyWatch Data Pipeline Architecture</h3>
+                        <div style="display: flex; align-items: center; justify-content: space-around; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; border: 1px solid var(--border-bright); font-family: var(--font-mono); font-size: 13px; flex-wrap: wrap; gap: 10px;">
+                            <div style="text-align: center;"><strong>Cowrie Honeypot</strong><br><span style="font-size: 11px; color: var(--text-dim);">SSH/Telnet</span></div>
+                            <div style="color: var(--primary);">➔</div>
+                            <div style="text-align: center;"><strong>JSON Logs</strong><br><span style="font-size: 11px; color: var(--text-dim);">cowrie.json</span></div>
+                            <div style="color: var(--primary);">➔</div>
+                            <div style="text-align: center;"><strong>Python Parser</strong><br><span style="font-size: 11px; color: var(--text-dim);">parse_logs.py</span></div>
+                            <div style="color: var(--primary);">➔</div>
+                            <div style="text-align: center;"><strong>MySQL / SQLite DB</strong><br><span style="font-size: 11px; color: var(--text-dim);">cowrie_logs</span></div>
+                            <div style="color: var(--primary);">➔</div>
+                            <div style="text-align: center;"><strong>Flask REST API</strong><br><span style="font-size: 11px; color: var(--text-dim);">app.py</span></div>
+                            <div style="color: var(--primary);">➔</div>
+                            <div style="text-align: center;"><strong>SOC Dashboard</strong><br><span style="font-size: 11px; color: var(--text-dim);">HoneyWatch UI</span></div>
+                        </div>
+
+                        <h3 style="font-size: 15px; margin-top: 24px; margin-bottom: 12px; color: var(--primary);">Environment & Database Configuration</h3>
+                        <pre style="background: rgba(0,0,0,0.4); padding: 16px; border-radius: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">
+COWRIE_DB_HOST=localhost
+COWRIE_DB_USER=cowrie_app
+COWRIE_DB_PASSWORD=your_mysql_password
+COWRIE_DB_NAME=cowrie_logs
+COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
+                        </pre>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal Drawer -->
+    <div class="modal-overlay" id="detail-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 style="font-size: 16px; font-weight: 700;" id="modal-title">Detail Inspection</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-body-content">
+                Loading details...
+            </div>
+        </div>
     </div>
 
+    <!-- Dashboard JavaScript Logic -->
+    <script>
+        let currentTab = 'dashboard';
+        let autoRefreshInterval = null;
+        let attackPage = 1;
+        let chartTimeline = null;
+        let chartTopIPs = null;
+        let chartTopCmds = null;
+        let chartFullTimeline = null;
 
-    <section class="panel">
-        <h2>⌨️ Captured Commands</h2>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSummaryData();
+            toggleAutoRefresh('10');
+        });
 
-        <div class="command-list">
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
 
-            {% for c in commands %}
-            <div class="command">
-                <code>{{ c.input }}</code>
-                <span class="timestamp">{{ c.timestamp }}</span>
-            </div>
-            {% else %}
-            <p>No commands captured.</p>
-            {% endfor %}
+            event.currentTarget.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
 
-        </div>
-    </section>
+            const titles = {
+                'dashboard': 'Overview Dashboard',
+                'attacks': 'Attack Monitor Log',
+                'sessions': 'Honeypot Sessions',
+                'ips': 'IP Intelligence Analysis',
+                'commands': 'Command Payload Analysis',
+                'credentials': 'Captured Credentials',
+                'timeline': 'Chronological Timeline',
+                'logs': 'Cowrie Log Telemetry',
+                'report': 'Executive Report Summary',
+                'settings': 'Settings & Pipeline Architecture'
+            };
+            document.getElementById('tab-header-title').innerText = titles[tabId] || 'HoneyWatch Dashboard';
 
-</div>
+            // Lazy fetch for active tab
+            if (tabId === 'dashboard') fetchSummaryData();
+            else if (tabId === 'attacks') fetchAttacks(1);
+            else if (tabId === 'sessions') fetchSessions(1);
+            else if (tabId === 'ips') fetchIPs();
+            else if (tabId === 'commands') fetchCommands();
+            else if (tabId === 'credentials') fetchCredentials();
+            else if (tabId === 'timeline') fetchFullTimeline();
+            else if (tabId === 'logs') fetchLogs();
+        }
 
+        function toggleAutoRefresh(seconds) {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            if (seconds !== 'off') {
+                autoRefreshInterval = setInterval(() => {
+                    if (currentTab === 'dashboard') fetchSummaryData();
+                    else if (currentTab === 'attacks') fetchAttacks(attackPage);
+                }, parseInt(seconds) * 1000);
+            }
+        }
+
+        async function fetchSummaryData() {
+            try {
+                const res = await fetch('/api/dashboard/summary');
+                const data = await res.json();
+
+                document.getElementById('last-updated-ts').innerText = `Updated: ${new Date().toLocaleTimeString()}`;
+
+                if (data.db_connected === false) {
+                    document.getElementById('status-pill').style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    document.getElementById('status-pill').style.background = 'rgba(239, 68, 68, 0.1)';
+                    document.getElementById('status-text').innerText = 'Database Disconnected';
+                    document.getElementById('status-text').style.color = '#ef4444';
+                } else {
+                    document.getElementById('status-pill').style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                    document.getElementById('status-pill').style.background = 'rgba(16, 185, 129, 0.1)';
+                    document.getElementById('status-text').innerText = 'System Online';
+                    document.getElementById('status-text').style.color = '#10b981';
+                }
+
+                // Update Stats
+                document.getElementById('stat-tot-events').innerText = data.total_events || 0;
+                document.getElementById('stat-unique-ips').innerText = data.unique_ips || 0;
+                document.getElementById('stat-tot-sessions').innerText = data.total_sessions || 0;
+                document.getElementById('stat-tot-logins').innerText = data.total_logins || 0;
+                document.getElementById('stat-tot-commands').innerText = data.total_commands || 0;
+
+                const bot = data.bot_assessment || {};
+                document.getElementById('stat-bot-score').innerText = `${bot.automation_score || 0}/100`;
+                document.getElementById('stat-bot-assessment').innerText = bot.assessment || 'Insufficient Evidence';
+
+                // Classifier card
+                document.getElementById('classifier-badge').innerText = `Score: ${bot.automation_score || 0}`;
+                document.getElementById('classifier-assessment-text').innerHTML = `Assessment: <strong>${bot.assessment || 'N/A'}</strong> (Score: ${bot.automation_score || 0}/100)`;
+                const indList = document.getElementById('classifier-indicators-list');
+                indList.innerHTML = '';
+                (bot.indicators || ['No activity detected']).forEach(ind => {
+                    const li = document.createElement('li');
+                    li.innerText = ind;
+                    indList.appendChild(li);
+                });
+
+                // Populate Recent Table
+                const tbody = document.getElementById('tbody-recent-sessions');
+                if (!data.recent_sessions || data.recent_sessions.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
+                        <div class="empty-icon">🛡️</div>
+                        <div class="empty-text"><strong>No attack data available yet.</strong><br>Start the Cowrie honeypot and generate authorized test activity to populate the dashboard.</div>
+                    </td></tr>`;
+                } else {
+                    tbody.innerHTML = data.recent_sessions.map(s => `
+                        <tr>
+                            <td>${s.start_time || 'N/A'}</td>
+                            <td><strong style="color: var(--primary);">${s.src_ip || 'Unknown'}</strong></td>
+                            <td><code>${s.session_id || 'N/A'}</code></td>
+                            <td>${s.dst_port || 2222}</td>
+                            <td>${s.username || 'N/A'}</td>
+                            <td>${s.success === 1 ? '<span class="badge badge-success">SUCCESS</span>' : '<span class="badge badge-danger">FAILED</span>'}</td>
+                            <td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                renderDashboardCharts(data);
+            } catch (err) {
+                console.error("Fetch summary error:", err);
+            }
+        }
+
+        function renderDashboardCharts(data) {
+            // Top IPs Chart
+            const ctxIPs = document.getElementById('chart-top-ips').getContext('2d');
+            const ipLabels = (data.top_ips || []).map(i => i.src_ip);
+            const ipValues = (data.top_ips || []).map(i => i.count);
+
+            if (chartTopIPs) chartTopIPs.destroy();
+            chartTopIPs = new Chart(ctxIPs, {
+                type: 'bar',
+                data: {
+                    labels: ipLabels.length ? ipLabels : ['No Data'],
+                    datasets: [{
+                        label: 'Sessions',
+                        data: ipValues.length ? ipValues : [0],
+                        backgroundColor: '#38bdf8',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+
+            // Top Commands Chart
+            const ctxCmds = document.getElementById('chart-top-commands').getContext('2d');
+            const cmdLabels = (data.top_commands || []).map(c => c.input);
+            const cmdValues = (data.top_commands || []).map(c => c.count);
+
+            if (chartTopCmds) chartTopCmds.destroy();
+            chartTopCmds = new Chart(ctxCmds, {
+                type: 'bar',
+                data: {
+                    labels: cmdLabels.length ? cmdLabels : ['No Commands'],
+                    datasets: [{
+                        label: 'Executions',
+                        data: cmdValues.length ? cmdValues : [0],
+                        backgroundColor: '#a855f7',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+
+            // Timeline area chart
+            fetchTimelineChartData();
+        }
+
+        async function fetchTimelineChartData() {
+            try {
+                const res = await fetch('/api/timeline');
+                const resData = await res.json();
+                const timeline = resData.timeline || [];
+
+                const ctxTL = document.getElementById('chart-timeline').getContext('2d');
+                const labels = timeline.map(t => t.timestamp);
+                const values = timeline.map(t => t.total);
+
+                if (chartTimeline) chartTimeline.destroy();
+                chartTimeline = new Chart(ctxTL, {
+                    type: 'line',
+                    data: {
+                        labels: labels.length ? labels : ['Current Time'],
+                        datasets: [{
+                            label: 'Attack Events',
+                            data: values.length ? values : [0],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Timeline error:", err);
+            }
+        }
+
+        async function fetchAttacks(page = 1) {
+            attackPage = page;
+            const search = document.getElementById('attack-search').value;
+            const type = document.getElementById('attack-event-filter').value;
+            const res = await fetch(`/api/attacks?page=${page}&limit=15&search=${encodeURIComponent(search)}&event_type=${encodeURIComponent(type)}`);
+            const data = await res.json();
+
+            document.getElementById('attack-pagination-info').innerText = `Showing ${data.events.length} of ${data.total} events (Page ${data.page} of ${data.total_pages})`;
+            document.getElementById('btn-prev-page').disabled = data.page <= 1;
+            document.getElementById('btn-next-page').disabled = data.page >= data.total_pages;
+
+            const tbody = document.getElementById('tbody-attacks');
+            if (!data.events || data.events.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No security events found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.events.map(e => `
+                <tr>
+                    <td>${e.timestamp || 'N/A'}</td>
+                    <td><span class="badge ${e.event_type.includes('success') ? 'badge-success' : e.event_type.includes('failed') ? 'badge-danger' : 'badge-primary'}">${e.event_type}</span></td>
+                    <td><strong style="color: var(--primary);">${e.src_ip || 'N/A'}</strong></td>
+                    <td>${e.dst_port || 2222}</td>
+                    <td><code>${e.session_id || 'N/A'}</code></td>
+                    <td>${e.input ? '<code>' + e.input + '</code>' : e.username ? 'User: ' + e.username : 'Connection Established'}</td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="inspectSession('${e.session_id}')">Inspect</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function changeAttackPage(delta) {
+            fetchAttacks(attackPage + delta);
+        }
+
+        async function fetchSessions(page = 1) {
+            const search = document.getElementById('session-search').value;
+            const res = await fetch(`/api/sessions?page=${page}&limit=20&search=${encodeURIComponent(search)}`);
+            const data = await res.json();
+            const tbody = document.getElementById('tbody-sessions');
+
+            if (!data.sessions || data.sessions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No sessions recorded yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.sessions.map(s => `
+                <tr>
+                    <td><code>${s.session_id}</code></td>
+                    <td><strong style="color: var(--primary);">${s.src_ip || 'N/A'}</strong></td>
+                    <td>${s.src_port || 'N/A'}</td>
+                    <td>${s.dst_port || 2222}</td>
+                    <td>${s.start_time || 'N/A'}</td>
+                    <td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td>
+                    <td><span class="badge badge-warning">${s.login_count}</span></td>
+                    <td><span class="badge badge-primary">${s.command_count}</span></td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="inspectSession('${s.session_id}')">View Flow</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function fetchIPs() {
+            const res = await fetch('/api/ips');
+            const data = await res.json();
+            const tbody = document.getElementById('tbody-ips');
+
+            if (!data.ips || data.ips.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No IP address intelligence data available yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.ips.map(i => `
+                <tr>
+                    <td><strong style="color: var(--primary);">${i.src_ip}</strong></td>
+                    <td>${i.total_sessions}</td>
+                    <td>${i.total_logins}</td>
+                    <td>${i.total_commands}</td>
+                    <td><span class="badge badge-primary">${i.total_events}</span></td>
+                    <td>${i.first_seen || 'N/A'}</td>
+                    <td>${i.last_seen || 'N/A'}</td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="inspectIP('${i.src_ip}')">Analyze</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function fetchCommands() {
+            const res = await fetch('/api/commands');
+            const data = await res.json();
+            const tbody = document.getElementById('tbody-commands');
+
+            if (!data.commands || data.commands.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No captured command payloads available yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.commands.map(c => `
+                <tr>
+                    <td><code>${c.input}</code></td>
+                    <td><span class="badge badge-primary">${c.frequency}</span></td>
+                    <td><span style="color: var(--text-muted); font-size: 12px;">${c.meaning}</span></td>
+                    <td>${c.unique_sessions}</td>
+                    <td>${c.last_executed || 'N/A'}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function fetchCredentials() {
+            const res = await fetch('/api/credentials');
+            const data = await res.json();
+
+            const tbodyU = document.getElementById('tbody-usernames');
+            if (!data.usernames || data.usernames.length === 0) {
+                tbodyU.innerHTML = `<tr><td colspan="4" class="empty-state">No username attempt data recorded yet.</td></tr>`;
+            } else {
+                tbodyU.innerHTML = data.usernames.map(u => `
+                    <tr>
+                        <td><strong>${u.username}</strong></td>
+                        <td>${u.count}</td>
+                        <td><span class="badge badge-success">${u.success_count}</span></td>
+                        <td><span class="badge badge-danger">${u.failed_count}</span></td>
+                    </tr>
+                `).join('');
+            }
+
+            const tbodyP = document.getElementById('tbody-passwords');
+            if (!data.passwords || data.passwords.length === 0) {
+                tbodyP.innerHTML = `<tr><td colspan="2" class="empty-state">No password attempt data recorded yet.</td></tr>`;
+            } else {
+                tbodyP.innerHTML = data.passwords.map(p => `
+                    <tr>
+                        <td><code>${p.password}</code></td>
+                        <td><span class="badge badge-warning">${p.count}</span></td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function fetchFullTimeline() {
+            const res = await fetch('/api/timeline');
+            const resData = await res.json();
+            const timeline = resData.timeline || [];
+
+            const ctx = document.getElementById('chart-full-timeline').getContext('2d');
+            const labels = timeline.map(t => t.timestamp);
+            const sessions = timeline.map(t => t.sessions);
+            const logins = timeline.map(t => t.logins);
+            const commands = timeline.map(t => t.commands);
+
+            if (chartFullTimeline) chartFullTimeline.destroy();
+            chartFullTimeline = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['Current'],
+                    datasets: [
+                        { label: 'Sessions', data: sessions, backgroundColor: '#38bdf8' },
+                        { label: 'Logins', data: logins, backgroundColor: '#f59e0b' },
+                        { label: 'Commands', data: commands, backgroundColor: '#a855f7' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+        }
+
+        async function fetchLogs() {
+            const res = await fetch('/api/logs');
+            const data = await res.json();
+            document.getElementById('log-viewer-box').innerText = JSON.stringify(data.logs, null, 2);
+        }
+
+        async function inspectSession(sessionId) {
+            const res = await fetch(`/api/sessions/${sessionId}`);
+            const data = await res.json();
+            if (data.error) return;
+
+            document.getElementById('modal-title').innerText = `Session Flow: ${sessionId}`;
+            const body = document.getElementById('modal-body-content');
+
+            const s = data.session;
+            let html = `
+                <div style="margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px;">
+                    <p><strong>Source IP:</strong> <span style="color: var(--primary);">${s.src_ip}</span> | <strong>Destination Port:</strong> ${s.dst_port}</p>
+                    <p><strong>Started:</strong> ${s.start_time} | <strong>Duration:</strong> ${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</p>
+                </div>
+                <h4 style="margin-bottom: 10px; color: var(--primary);">Authentication Trials:</h4>
+            `;
+
+            if (!data.logins || data.logins.length === 0) {
+                html += `<p style="font-size: 13px; color: var(--text-dim);">No authentication events captured.</p>`;
+            } else {
+                html += `<table style="margin-bottom: 20px;"><thead><tr><th>Timestamp</th><th>Username</th><th>Password</th><th>Status</th></tr></thead><tbody>`;
+                html += data.logins.map(l => `
+                    <tr>
+                        <td>${l.timestamp}</td>
+                        <td>${l.username}</td>
+                        <td><code>${l.password}</code></td>
+                        <td>${l.success === 1 ? '<span class="badge badge-success">SUCCESS</span>' : '<span class="badge badge-danger">FAILED</span>'}</td>
+                    </tr>
+                `).join('');
+                html += `</tbody></table>`;
+            }
+
+            html += `<h4 style="margin-bottom: 10px; color: var(--primary);">Executed Shell Commands:</h4>`;
+            if (!data.commands || data.commands.length === 0) {
+                html += `<p style="font-size: 13px; color: var(--text-dim);">No command executions captured.</p>`;
+            } else {
+                html += `<table><thead><tr><th>Timestamp</th><th>Executed Input</th><th>Identified Intent</th></tr></thead><tbody>`;
+                html += data.commands.map(c => `
+                    <tr>
+                        <td>${c.timestamp}</td>
+                        <td><code>${c.input}</code></td>
+                        <td><span style="color: var(--text-muted); font-size: 12px;">${c.meaning}</span></td>
+                    </tr>
+                `).join('');
+                html += `</tbody></table>`;
+            }
+
+            body.innerHTML = html;
+            document.getElementById('detail-modal').classList.add('active');
+        }
+
+        async function inspectIP(ip) {
+            const res = await fetch(`/api/ips/${ip}`);
+            const data = await res.json();
+            document.getElementById('modal-title').innerText = `IP Intelligence: ${ip}`;
+            const body = document.getElementById('modal-body-content');
+
+            let html = `
+                <p style="margin-bottom: 16px;">Telemetry records for external origin address <strong style="color: var(--primary);">${ip}</strong>.</p>
+                <h4 style="margin-bottom: 10px; color: var(--primary);">Associated Sessions (${data.sessions.length}):</h4>
+                <table style="margin-bottom: 20px;"><thead><tr><th>Session ID</th><th>Port</th><th>Start Time</th><th>Duration</th></tr></thead><tbody>
+            `;
+            html += data.sessions.map(s => `<tr><td><code>${s.session_id}</code></td><td>${s.dst_port}</td><td>${s.start_time}</td><td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td></tr>`).join('');
+            html += `</tbody></table>`;
+
+            body.innerHTML = html;
+            document.getElementById('detail-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.remove('active');
+        }
+
+        function downloadPDFReport() {
+            const range = document.getElementById('report-range-select').value;
+            window.location.href = `/api/report/pdf?range=${range}`;
+        }
+
+        function exportCSV() {
+            window.location.href = '/api/export/csv';
+        }
+
+        async function previewReportModal() {
+            const range = document.getElementById('report-range-select').value;
+            const res = await fetch(`/api/report/preview?range=${range}`);
+            const data = await res.json();
+
+            const container = document.getElementById('report-preview-container');
+            container.innerHTML = `
+                <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--primary);">Executive Security Report Preview (${range.upper()})</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Total Events:</strong> ${data.tot_events}</div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Unique IPs:</strong> ${data.unique_ips}</div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Total Sessions:</strong> ${data.tot_sessions}</div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Commands:</strong> ${data.tot_commands}</div>
+                </div>
+                <p><strong>Bot Classification Assessment:</strong> ${data.bot_info.assessment} (Score: ${data.bot_info.automation_score}/100)</p>
+            `;
+        }
+
+        function openExecutiveReport() {
+            switchTab('report');
+        }
+    </script>
 </body>
 </html>
