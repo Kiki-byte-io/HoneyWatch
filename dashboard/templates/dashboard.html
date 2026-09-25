@@ -751,6 +751,31 @@
                     </div>
                 </div>
 
+                <!-- AI Intelligence Engine Cards -->
+                <div class="grid-half">
+                    <div class="card" style="border-left: 4px solid var(--primary);">
+                        <div class="card-header">
+                            <span class="card-title">🤖 AI ATTACK SUMMARY</span>
+                            <span class="badge badge-primary">ai_summarizer.py</span>
+                        </div>
+                        <div style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); min-height: 150px;">
+                            <div style="font-size: 13px; color: var(--text-main); line-height: 1.6; white-space: pre-wrap;" id="dashboard-ai-summary-text">
+                                Loading AI summary analysis from verified telemetry...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left: 4px solid var(--success);">
+                        <div class="card-header">
+                            <span class="card-title">🛡️ AI MITIGATION RECOMMENDATIONS</span>
+                            <span class="badge badge-success">ai_mitigation.py</span>
+                        </div>
+                        <div id="dashboard-ai-mitigations-container" style="background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); min-height: 150px;">
+                            <div style="font-size: 13px; color: var(--text-muted);">Loading defensive mitigation recommendations...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Recent Attacks Table -->
                 <div class="card">
                     <div class="card-header">
@@ -1178,8 +1203,39 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
                 }
 
                 renderDashboardCharts(data);
+                fetchIntelligenceData();
             } catch (err) {
                 console.error("Fetch summary error:", err);
+            }
+        }
+
+        async function fetchIntelligenceData() {
+            try {
+                const res = await fetch('/api/intelligence');
+                const intel = await res.json();
+
+                const summaryElem = document.getElementById('dashboard-ai-summary-text');
+                if (summaryElem) {
+                    summaryElem.innerText = intel.summary || 'No attack telemetry recorded for AI summary generation.';
+                }
+
+                const mitigationsContainer = document.getElementById('dashboard-ai-mitigations-container');
+                if (mitigationsContainer) {
+                    if (!intel.mitigations || intel.mitigations.length === 0) {
+                        mitigationsContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-dim);">No specific mitigations generated for current telemetry.</div>`;
+                    } else {
+                        mitigationsContainer.innerHTML = intel.mitigations.map((m, idx) => `
+                            <div style="margin-bottom: 12px; font-size: 12.5px;">
+                                <strong style="color: var(--success);">${idx + 1}. ${m.recommendation}</strong>
+                                <div style="color: var(--text-muted); margin-top: 3px; padding-left: 10px; border-left: 2px solid var(--border-bright);">
+                                    Reason: ${m.reason}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (err) {
+                console.error("Fetch intelligence error:", err);
             }
         }
 
