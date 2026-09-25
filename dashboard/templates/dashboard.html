@@ -1599,20 +1599,82 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
 
         async function previewReportModal() {
             const range = document.getElementById('report-range-select').value;
-            const res = await fetch(`/api/report/preview?range=${range}`);
-            const data = await res.json();
-
             const container = document.getElementById('report-preview-container');
-            container.innerHTML = `
-                <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--primary);">Executive Security Report Preview (${range.upper()})</h3>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
-                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Total Events:</strong> ${data.tot_events}</div>
-                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Unique IPs:</strong> ${data.unique_ips}</div>
-                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Total Sessions:</strong> ${data.tot_sessions}</div>
-                    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;"><strong>Commands:</strong> ${data.tot_commands}</div>
-                </div>
-                <p><strong>Bot Classification Assessment:</strong> ${data.bot_info.assessment} (Score: ${data.bot_info.automation_score}/100)</p>
-            `;
+            container.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">Generating executive report preview from database...</p>`;
+
+            try {
+                const res = await fetch(`/api/report/preview?range=${range}`);
+                const data = await res.json();
+
+                const summaryText = (data.summary_obj && data.summary_obj.summary) ? data.summary_obj.summary : "No summary available.";
+                const botAssessment = (data.bot_info && data.bot_info.assessment) ? data.bot_info.assessment : "N/A";
+                const botScore = (data.bot_info && data.bot_info.automation_score !== undefined) ? data.bot_info.automation_score : 0;
+
+                let mitigationsHTML = "";
+                if (data.mitigations && data.mitigations.length > 0) {
+                    mitigationsHTML = data.mitigations.map((m, idx) => `
+                        <div style="margin-bottom: 8px;">
+                            <strong style="color: var(--success);">${idx + 1}. Recommendation: ${m.recommendation}</strong><br/>
+                            <span style="color: var(--text-muted); padding-left: 12px; display: inline-block;">Reason: ${m.reason}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    mitigationsHTML = `<span style="color: var(--text-dim);">No specific mitigations generated.</span>`;
+                }
+
+                container.innerHTML = `
+                    <div style="border-bottom: 1px solid var(--border-bright); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="font-size: 18px; color: #ffffff; font-weight: 700;">🛡️ HONEYWATCH EXECUTIVE THREAT REPORT PREVIEW</h3>
+                            <p style="font-size: 12px; color: var(--primary);">Telemetry Scope: ${range.toUpperCase()} &nbsp;|&nbsp; Report Date: ${data.generated_at}</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="downloadPDFReport()">📥 Download PDF</button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;">
+                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">TOTAL EVENTS</div>
+                            <div style="font-size: 20px; font-weight: 800; color: #ffffff;">${data.tot_events}</div>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">UNIQUE IPs</div>
+                            <div style="font-size: 20px; font-weight: 800; color: var(--primary);">${data.unique_ips}</div>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">SESSIONS</div>
+                            <div style="font-size: 20px; font-weight: 800; color: #ffffff;">${data.tot_sessions}</div>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">LOGIN ATTEMPTS</div>
+                            <div style="font-size: 20px; font-weight: 800; color: var(--warning);">${data.tot_logins}</div>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">BOT SCORE</div>
+                            <div style="font-size: 20px; font-weight: 800; color: var(--purple);">${botScore}/100</div>
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--primary-glow); border-left: 4px solid var(--primary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; color: var(--primary); margin-bottom: 8px; font-weight: 700;">🤖 AI ATTACK SUMMARY (ai_summarizer.py)</h4>
+                        <p style="font-size: 13px; color: var(--text-main); line-height: 1.6; white-space: pre-wrap;">${summaryText}</p>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(16, 185, 129, 0.3); border-left: 4px solid var(--success); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <h4 style="font-size: 14px; color: var(--success); margin-bottom: 10px; font-weight: 700;">🛡️ AI MITIGATION RECOMMENDATIONS (ai_mitigation.py)</h4>
+                        <div style="font-size: 13px; line-height: 1.5;">${mitigationsHTML}</div>
+                    </div>
+
+                    <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px;">
+                        <h4 style="font-size: 13px; color: var(--warning); margin-bottom: 6px;">🧠 BEHAVIORAL BOT / HUMAN ANALYSIS</h4>
+                        <p style="font-size: 12.5px; color: var(--text-muted);">
+                            <strong>Assessment:</strong> ${botAssessment} &nbsp;|&nbsp; 
+                            <strong>Automation Score:</strong> ${botScore}/100
+                        </p>
+                    </div>
+                `;
+            } catch (err) {
+                container.innerHTML = `<div style="color: var(--danger);">Failed to load report preview: ${err.message}</div>`;
+            }
         }
 
         function openExecutiveReport() {

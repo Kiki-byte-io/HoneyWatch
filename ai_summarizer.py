@@ -10,7 +10,7 @@ def generate_summary(evidence=None):
 
     if evidence is None:
         return {
-            "summary": "No Cowrie sessions available yet for analysis.",
+            "summary": "No Cowrie honeypot sessions available yet for AI threat analysis.",
             "assessment": "No attack data available yet.",
             "authentication": "0 logins recorded.",
             "observed_commands": [],
@@ -22,39 +22,49 @@ def generate_summary(evidence=None):
         return SUMMARY_CACHE[sid]
 
     authentication = (
-        f"{evidence['successful_logins']} successful login(s) and "
-        f"{evidence['failed_logins']} failed login(s) were recorded."
+        f"{evidence.get('successful_logins', 0)} successful login(s) and "
+        f"{evidence.get('failed_logins', 0)} failed login(s) were recorded."
     )
     commands = evidence.get("commands", [])
     recon_commands = evidence.get("reconnaissance_commands", [])
 
-    if evidence.get("failed_logins", 0) > 0:
-        assessment = "The session included failed authentication attempts followed by observed command activity."
+    if evidence.get("failed_logins", 0) > 0 and evidence.get("successful_logins", 0) == 0:
+        assessment = "The session involved unauthenticated credential trial attempts."
+    elif evidence.get("failed_logins", 0) > 0 and evidence.get("successful_logins", 0) > 0:
+        assessment = "The session included initial failed authentication attempts followed by a successful login and interactive command execution."
     else:
         assessment = (
             "The session involved successful authentication followed by system and account reconnaissance commands. "
             "No additional attack behavior is supported by the available evidence."
         )
 
+    cmd_formatted = ", ".join([f"'{c}'" for c in commands]) if commands else "None"
+    recon_formatted = ", ".join([f"'{c}'" for c in recon_commands]) if recon_commands else "None"
+
+    deterministic_summary = (
+        f"Targeting port {evidence.get('destination_port', 2222)}, an interactive session was established from source IP {evidence.get('source_ip', 'Unknown')} (Session ID: {sid}). "
+        f"Authentication telemetry recorded {evidence.get('successful_logins', 0)} successful login(s) and {evidence.get('failed_logins', 0)} failed attempt(s). "
+        f"During interaction, {len(commands)} shell command payload(s) were executed: [{cmd_formatted}]. "
+        f"Reconnaissance indicators detected {len(recon_commands)} system inspection command(s): [{recon_formatted}]. "
+        f"{assessment}"
+    )
+
     prompt = f"""
-Write a short professional cybersecurity incident summary.
+Write a professional cybersecurity incident summary paragraph based strictly on verified facts.
 
-Use ONLY these verified facts:
-
+Facts:
 Source IP: {evidence.get('source_ip')}
 Destination port: {evidence.get('destination_port')}
 Successful logins: {evidence.get('successful_logins')}
 Failed logins: {evidence.get('failed_logins')}
-Commands: {commands}
+Commands executed: {commands}
 Reconnaissance commands: {recon_commands}
+Assessment: {assessment}
 
-IMPORTANT:
-Do not invent dates, times, usernames, commands, attack techniques, or attacker intent.
-Do not claim brute force, credential theft, privilege escalation, malware, or persistence unless supported by facts.
-Write one short paragraph describing the observed session.
+Do not invent unauthorized details, dates, or malicious intentions beyond these facts.
 """
 
-    ai_narrative = "AI narrative summary generated from verified evidence."
+    ai_narrative = deterministic_summary
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
@@ -64,17 +74,17 @@ Write one short paragraph describing the observed session.
                 "stream": False,
                 "options": {
                     "temperature": 0,
-                    "num_predict": 160
+                    "num_predict": 180
                 }
             },
             timeout=3
         )
         if response.status_code == 200:
-            ai_narrative = response.json().get("response", "").strip()
-        else:
-            ai_narrative = f"Observed session from {evidence.get('source_ip')} with {len(commands)} command(s) executed."
+            llm_res = response.json().get("response", "").strip()
+            if llm_res:
+                ai_narrative = llm_res
     except Exception:
-        ai_narrative = f"Observed session from {evidence.get('source_ip')} on port {evidence.get('destination_port')}. Executed {len(commands)} command(s)."
+        ai_narrative = deterministic_summary
 
     result = {
         "summary": ai_narrative,
