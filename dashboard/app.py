@@ -440,16 +440,29 @@ def api_report_preview():
 
 @app.route("/api/report/pdf")
 def api_report_pdf():
-    range_filter = request.args.get("range", "all")
-    pdf_bytes = generate_pdf_report(range_filter)
-    buffer = io.BytesIO(pdf_bytes)
-    filename = f"HoneyWatch_Executive_Security_Report_{range_filter}.pdf"
-    return send_file(
-        buffer,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name=filename
-    )
+    try:
+        range_filter = request.args.get("range", "all")
+        pdf_bytes = generate_pdf_report(range_filter)
+        buffer = io.BytesIO(pdf_bytes)
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        filename = f"HoneyWatch_Executive_Report_{date_str}.pdf"
+
+        response = send_file(
+            buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename
+        )
+        response.headers["Content-Type"] = "application/pdf"
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+        return response
+    except Exception as e:
+        print(f"[PDF Generation Error] {e}")
+        return jsonify({
+            "error": "Executive report generation failed. Please try again.",
+            "details": str(e)
+        }), 500
 
 
 @app.route("/api/export/csv")

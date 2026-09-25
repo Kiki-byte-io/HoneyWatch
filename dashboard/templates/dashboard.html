@@ -1017,7 +1017,7 @@
                                 <option value="7d">Last 7 Days</option>
                                 <option value="30d">Last 30 Days</option>
                             </select>
-                            <button class="btn btn-primary" onclick="downloadPDFReport()">
+                            <button class="btn btn-primary" id="btn-download-pdf" onclick="downloadPDFReport()">
                                 📥 Download Executive PDF Report
                             </button>
                             <button class="btn btn-secondary" onclick="previewReportModal()">
@@ -1588,16 +1588,84 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             document.getElementById('detail-modal').classList.remove('active');
         }
 
-        function downloadPDFReport() {
+        let isDownloadingPDF = false;
+
+        async function downloadPDFReport() {
+            if (isDownloadingPDF) return;
+            isDownloadingPDF = true;
+
+            const btn = document.getElementById('btn-download-pdf');
+            const originalText = btn ? btn.innerHTML : '📥 Download Executive PDF Report';
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Generating PDF...';
+            }
+
             const rangeSelect = document.getElementById('report-range-select');
             const range = rangeSelect ? rangeSelect.value : 'all';
-            const filename = `HoneyWatch_Executive_Security_Report_${range}.pdf`;
-            const link = document.createElement('a');
-            link.href = `/api/report/pdf?range=${range}`;
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const fallbackFilename = `HoneyWatch_Executive_Report_${dateStr}.pdf`;
+
+            try {
+                const response = await fetch(`/api/report/pdf?range=${range}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.toLowerCase().includes('application/pdf')) {
+                    throw new Error('Response is not a valid PDF document');
+                }
+
+                const blob = await response.blob();
+                if (!blob || blob.size === 0) {
+                    throw new Error('PDF blob is empty');
+                }
+
+                const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+                const objectUrl = window.URL.createObjectURL(pdfBlob);
+
+                let filename = fallbackFilename;
+                const disposition = response.headers.get('content-disposition');
+                if (disposition && disposition.includes('filename=')) {
+                    const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+                    if (match && match[1]) {
+                        filename = match[1].trim();
+                    }
+                }
+
+                const link = document.createElement('a');
+                link.href = objectUrl;
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(objectUrl);
+                }, 1000);
+
+                if (btn) {
+                    btn.innerHTML = '✓ Executive report downloaded';
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        isDownloadingPDF = false;
+                    }, 3000);
+                } else {
+                    isDownloadingPDF = false;
+                }
+            } catch (err) {
+                console.error("PDF download failure:", err);
+                alert("Executive report generation failed. Please try again.");
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+                isDownloadingPDF = false;
+            }
         }
 
         function exportCSV() {
