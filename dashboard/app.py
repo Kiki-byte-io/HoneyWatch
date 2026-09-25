@@ -442,12 +442,13 @@ def api_report_preview():
 def api_report_pdf():
     range_filter = request.args.get("range", "all")
     pdf_bytes = generate_pdf_report(range_filter)
-    return Response(
-        pdf_bytes,
+    buffer = io.BytesIO(pdf_bytes)
+    filename = f"HoneyWatch_Executive_Security_Report_{range_filter}.pdf"
+    return send_file(
+        buffer,
         mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=HoneyWatch_Executive_Security_Report_{range_filter}.pdf"
-        }
+        as_attachment=True,
+        download_name=filename
     )
 
 

@@ -1589,8 +1589,15 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
         }
 
         function downloadPDFReport() {
-            const range = document.getElementById('report-range-select').value;
-            window.location.href = `/api/report/pdf?range=${range}`;
+            const rangeSelect = document.getElementById('report-range-select');
+            const range = rangeSelect ? rangeSelect.value : 'all';
+            const filename = `HoneyWatch_Executive_Security_Report_${range}.pdf`;
+            const link = document.createElement('a');
+            link.href = `/api/report/pdf?range=${range}`;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function exportCSV() {
