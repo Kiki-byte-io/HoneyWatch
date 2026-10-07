@@ -1,4 +1,4 @@
-<img width="1785" height="848" alt="Screenshot (3085) trim" src="https://github.com/user-attachments/assets/7d1ac279-e9e2-4492-92b1-42f6114e3a13" /># HoneyWatch
+# HoneyWatch
 
 ### AI-Powered Honeypot Attack Monitoring & Security Intelligence
 
@@ -181,14 +181,15 @@ in a single monitoring interface.
 
 #### Attack Monitor
 
-<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/c5b90784-1843-4c3b-b601-e3597c6d0794" />
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/3f7605a0-fb36-4cac-a495-f8052a810dfb" />
+
 
 The Attack Monitor provides a chronological view of captured authentication
 and command events from Cowrie honeypot sessions.
 
 #### Command Analysis
 
-![HoneyWatch Command Analysis](docs/screenshots/command-analysis.png)
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/c5b90784-1843-4c3b-b601-e3597c6d0794" />
 
 Command Analysis aggregates captured command payloads and maps observed
 commands to their identified intent or meaning across sessions.
