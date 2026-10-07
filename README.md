@@ -169,6 +169,31 @@ HoneyWatch provides views for:
 The dashboard provides visibility into captured sessions, attacker IPs,
 commands, behavioral analysis, AI-generated summaries, and reporting.
 
+### Dashboard Screenshots
+
+#### Overview Dashboard
+
+![HoneyWatch Overview Dashboard]
+<img width="1785" height="848" alt="Screenshot (3085) trim" src="https://github.com/user-attachments/assets/6d1c42c7-ae40-4f6d-b8b5-ccc8803b20c9" />
+
+The HoneyWatch overview combines attack telemetry, session statistics,
+command activity, source IP analysis, and behavioral automation scoring
+in a single monitoring interface.
+
+#### Attack Monitor
+
+![HoneyWatch Attack Monitor](docs/screenshots/attack-monitor.png)
+
+The Attack Monitor provides a chronological view of captured authentication
+and command events from Cowrie honeypot sessions.
+
+#### Command Analysis
+
+![HoneyWatch Command Analysis](docs/screenshots/command-analysis.png)
+
+Command Analysis aggregates captured command payloads and maps observed
+commands to their identified intent or meaning across sessions.
+
 ------------------------------------------------------------------------
 
 ## Executive Reporting
