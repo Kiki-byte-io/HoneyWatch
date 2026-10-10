@@ -1097,6 +1097,58 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             toggleAutoRefresh('10');
         });
 
+        // These helpers create text nodes rather than parsing API values as HTML.
+        function textElement(tag, value, className = '') {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            element.textContent = value == null ? '' : String(value);
+            return element;
+        }
+
+        function appendCell(row, value, className = '', code = false) {
+            const cell = document.createElement('td');
+            if (className) cell.className = className;
+            if (code) cell.appendChild(textElement('code', value));
+            else cell.textContent = value == null ? '' : String(value);
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function appendBadgeCell(row, value, badgeClass) {
+            const cell = document.createElement('td');
+            cell.appendChild(textElement('span', value, `badge ${badgeClass}`));
+            row.appendChild(cell);
+        }
+
+        function appendActionCell(row, label, action) {
+            const cell = document.createElement('td');
+            const button = textElement('button', label, 'btn btn-secondary btn-sm');
+            button.addEventListener('click', action);
+            cell.appendChild(button);
+            row.appendChild(cell);
+        }
+
+        function showEmptyRow(tbody, colspan, message) {
+            const row = document.createElement('tr');
+            const cell = textElement('td', message, 'empty-state');
+            cell.colSpan = colspan;
+            row.appendChild(cell);
+            tbody.replaceChildren(row);
+        }
+
+        function makeTable(headers, rows, className = '') {
+            const table = document.createElement('table');
+            if (className) table.className = className;
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => headerRow.appendChild(textElement('th', header)));
+            thead.appendChild(headerRow);
+            const tbody = document.createElement('tbody');
+            rows.forEach(row => tbody.appendChild(row));
+            table.append(thead, tbody);
+            return table;
+        }
+
         function switchTab(tabId) {
             currentTab = tabId;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -1172,34 +1224,33 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
 
                 // Classifier card
                 document.getElementById('classifier-badge').innerText = `Score: ${bot.automation_score || 0}`;
-                document.getElementById('classifier-assessment-text').innerHTML = `Assessment: <strong>${bot.assessment || 'N/A'}</strong> (Score: ${bot.automation_score || 0}/100)`;
+                const assessmentText = document.getElementById('classifier-assessment-text');
+                const assessmentStrong = textElement('strong', bot.assessment || 'N/A');
+                assessmentText.replaceChildren(document.createTextNode('Assessment: '), assessmentStrong,
+                    document.createTextNode(` (Score: ${bot.automation_score || 0}/100)`));
                 const indList = document.getElementById('classifier-indicators-list');
-                indList.innerHTML = '';
+                indList.replaceChildren();
                 (bot.indicators || ['No activity detected']).forEach(ind => {
-                    const li = document.createElement('li');
-                    li.innerText = ind;
-                    indList.appendChild(li);
+                    indList.appendChild(textElement('li', ind));
                 });
 
                 // Populate Recent Table
                 const tbody = document.getElementById('tbody-recent-sessions');
                 if (!data.recent_sessions || data.recent_sessions.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
-                        <div class="empty-icon">🛡️</div>
-                        <div class="empty-text"><strong>No attack data available yet.</strong><br>Start the Cowrie honeypot and generate authorized test activity to populate the dashboard.</div>
-                    </td></tr>`;
+                    showEmptyRow(tbody, 7, 'No attack data available yet. Start the Cowrie honeypot and generate authorized test activity to populate the dashboard.');
                 } else {
-                    tbody.innerHTML = data.recent_sessions.map(s => `
-                        <tr>
-                            <td>${s.start_time || 'N/A'}</td>
-                            <td><strong style="color: var(--primary);">${s.src_ip || 'Unknown'}</strong></td>
-                            <td><code>${s.session_id || 'N/A'}</code></td>
-                            <td>${s.dst_port || 2222}</td>
-                            <td>${s.username || 'N/A'}</td>
-                            <td>${s.success === 1 ? '<span class="badge badge-success">SUCCESS</span>' : '<span class="badge badge-danger">FAILED</span>'}</td>
-                            <td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td>
-                        </tr>
-                    `).join('');
+                    const rows = data.recent_sessions.map(s => {
+                        const row = document.createElement('tr');
+                        appendCell(row, s.start_time || 'N/A');
+                        appendCell(row, s.src_ip || 'Unknown', '', false).style.color = 'var(--primary)';
+                        appendCell(row, s.session_id || 'N/A', '', true);
+                        appendCell(row, s.dst_port || 2222);
+                        appendCell(row, s.username || 'N/A');
+                        appendBadgeCell(row, s.success === 1 ? 'SUCCESS' : 'FAILED', s.success === 1 ? 'badge-success' : 'badge-danger');
+                        appendCell(row, s.duration_ms ? `${s.duration_ms} ms` : 'Active');
+                        return row;
+                    });
+                    tbody.replaceChildren(...rows);
                 }
 
                 renderDashboardCharts(data);
@@ -1222,16 +1273,23 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
                 const mitigationsContainer = document.getElementById('dashboard-ai-mitigations-container');
                 if (mitigationsContainer) {
                     if (!intel.mitigations || intel.mitigations.length === 0) {
-                        mitigationsContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-dim);">No specific mitigations generated for current telemetry.</div>`;
+                        mitigationsContainer.replaceChildren(textElement('div', 'No specific mitigations generated for current telemetry.'));
                     } else {
-                        mitigationsContainer.innerHTML = intel.mitigations.map((m, idx) => `
-                            <div style="margin-bottom: 12px; font-size: 12.5px;">
-                                <strong style="color: var(--success);">${idx + 1}. ${m.recommendation}</strong>
-                                <div style="color: var(--text-muted); margin-top: 3px; padding-left: 10px; border-left: 2px solid var(--border-bright);">
-                                    Reason: ${m.reason}
-                                </div>
-                            </div>
-                        `).join('');
+                        const items = intel.mitigations.map((m, idx) => {
+                            const item = document.createElement('div');
+                            item.style.marginBottom = '12px';
+                            item.style.fontSize = '12.5px';
+                            const recommendation = textElement('strong', `${idx + 1}. ${m.recommendation}`);
+                            recommendation.style.color = 'var(--success)';
+                            const reason = textElement('div', `Reason: ${m.reason}`);
+                            reason.style.color = 'var(--text-muted)';
+                            reason.style.marginTop = '3px';
+                            reason.style.paddingLeft = '10px';
+                            reason.style.borderLeft = '2px solid var(--border-bright)';
+                            item.append(recommendation, reason);
+                            return item;
+                        });
+                        mitigationsContainer.replaceChildren(...items);
                     }
                 }
             } catch (err) {
@@ -1353,21 +1411,24 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
 
             const tbody = document.getElementById('tbody-attacks');
             if (!data.events || data.events.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No security events found.</td></tr>`;
+                showEmptyRow(tbody, 7, 'No security events found.');
                 return;
             }
 
-            tbody.innerHTML = data.events.map(e => `
-                <tr>
-                    <td>${e.timestamp || 'N/A'}</td>
-                    <td><span class="badge ${e.event_type.includes('success') ? 'badge-success' : e.event_type.includes('failed') ? 'badge-danger' : 'badge-primary'}">${e.event_type}</span></td>
-                    <td><strong style="color: var(--primary);">${e.src_ip || 'N/A'}</strong></td>
-                    <td>${e.dst_port || 2222}</td>
-                    <td><code>${e.session_id || 'N/A'}</code></td>
-                    <td>${e.input ? '<code>' + e.input + '</code>' : e.username ? 'User: ' + e.username : 'Connection Established'}</td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="inspectSession('${e.session_id}')">Inspect</button></td>
-                </tr>
-            `).join('');
+            const rows = data.events.map(e => {
+                const row = document.createElement('tr');
+                appendCell(row, e.timestamp || 'N/A');
+                const type = String(e.event_type || 'Unknown');
+                const typeClass = type.includes('success') ? 'badge-success' : type.includes('failed') ? 'badge-danger' : 'badge-primary';
+                appendBadgeCell(row, type, typeClass);
+                appendCell(row, e.src_ip || 'N/A').style.color = 'var(--primary)';
+                appendCell(row, e.dst_port || 2222);
+                appendCell(row, e.session_id || 'N/A', '', true);
+                appendCell(row, e.input ? e.input : e.username ? `User: ${e.username}` : 'Connection Established', '', Boolean(e.input));
+                appendActionCell(row, 'Inspect', () => inspectSession(e.session_id));
+                return row;
+            });
+            tbody.replaceChildren(...rows);
         }
 
         function changeAttackPage(delta) {
@@ -1381,23 +1442,24 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             const tbody = document.getElementById('tbody-sessions');
 
             if (!data.sessions || data.sessions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No sessions recorded yet.</td></tr>`;
+                showEmptyRow(tbody, 9, 'No sessions recorded yet.');
                 return;
             }
 
-            tbody.innerHTML = data.sessions.map(s => `
-                <tr>
-                    <td><code>${s.session_id}</code></td>
-                    <td><strong style="color: var(--primary);">${s.src_ip || 'N/A'}</strong></td>
-                    <td>${s.src_port || 'N/A'}</td>
-                    <td>${s.dst_port || 2222}</td>
-                    <td>${s.start_time || 'N/A'}</td>
-                    <td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td>
-                    <td><span class="badge badge-warning">${s.login_count}</span></td>
-                    <td><span class="badge badge-primary">${s.command_count}</span></td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="inspectSession('${s.session_id}')">View Flow</button></td>
-                </tr>
-            `).join('');
+            const rows = data.sessions.map(s => {
+                const row = document.createElement('tr');
+                appendCell(row, s.session_id, '', true);
+                appendCell(row, s.src_ip || 'N/A').style.color = 'var(--primary)';
+                appendCell(row, s.src_port || 'N/A');
+                appendCell(row, s.dst_port || 2222);
+                appendCell(row, s.start_time || 'N/A');
+                appendCell(row, s.duration_ms ? `${s.duration_ms} ms` : 'Active');
+                appendBadgeCell(row, s.login_count, 'badge-warning');
+                appendBadgeCell(row, s.command_count, 'badge-primary');
+                appendActionCell(row, 'View Flow', () => inspectSession(s.session_id));
+                return row;
+            });
+            tbody.replaceChildren(...rows);
         }
 
         async function fetchIPs() {
@@ -1406,22 +1468,23 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             const tbody = document.getElementById('tbody-ips');
 
             if (!data.ips || data.ips.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No IP address intelligence data available yet.</td></tr>`;
+                showEmptyRow(tbody, 8, 'No IP address intelligence data available yet.');
                 return;
             }
 
-            tbody.innerHTML = data.ips.map(i => `
-                <tr>
-                    <td><strong style="color: var(--primary);">${i.src_ip}</strong></td>
-                    <td>${i.total_sessions}</td>
-                    <td>${i.total_logins}</td>
-                    <td>${i.total_commands}</td>
-                    <td><span class="badge badge-primary">${i.total_events}</span></td>
-                    <td>${i.first_seen || 'N/A'}</td>
-                    <td>${i.last_seen || 'N/A'}</td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="inspectIP('${i.src_ip}')">Analyze</button></td>
-                </tr>
-            `).join('');
+            const rows = data.ips.map(i => {
+                const row = document.createElement('tr');
+                appendCell(row, i.src_ip).style.color = 'var(--primary)';
+                appendCell(row, i.total_sessions);
+                appendCell(row, i.total_logins);
+                appendCell(row, i.total_commands);
+                appendBadgeCell(row, i.total_events, 'badge-primary');
+                appendCell(row, i.first_seen || 'N/A');
+                appendCell(row, i.last_seen || 'N/A');
+                appendActionCell(row, 'Analyze', () => inspectIP(i.src_ip));
+                return row;
+            });
+            tbody.replaceChildren(...rows);
         }
 
         async function fetchCommands() {
@@ -1430,19 +1493,22 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             const tbody = document.getElementById('tbody-commands');
 
             if (!data.commands || data.commands.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No captured command payloads available yet.</td></tr>`;
+                showEmptyRow(tbody, 5, 'No captured command payloads available yet.');
                 return;
             }
 
-            tbody.innerHTML = data.commands.map(c => `
-                <tr>
-                    <td><code>${c.input}</code></td>
-                    <td><span class="badge badge-primary">${c.frequency}</span></td>
-                    <td><span style="color: var(--text-muted); font-size: 12px;">${c.meaning}</span></td>
-                    <td>${c.unique_sessions}</td>
-                    <td>${c.last_executed || 'N/A'}</td>
-                </tr>
-            `).join('');
+            const rows = data.commands.map(c => {
+                const row = document.createElement('tr');
+                appendCell(row, c.input, '', true);
+                appendBadgeCell(row, c.frequency, 'badge-primary');
+                const meaningCell = appendCell(row, c.meaning);
+                meaningCell.style.color = 'var(--text-muted)';
+                meaningCell.style.fontSize = '12px';
+                appendCell(row, c.unique_sessions);
+                appendCell(row, c.last_executed || 'N/A');
+                return row;
+            });
+            tbody.replaceChildren(...rows);
         }
 
         async function fetchCredentials() {
@@ -1451,29 +1517,23 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
 
             const tbodyU = document.getElementById('tbody-usernames');
             if (!data.usernames || data.usernames.length === 0) {
-                tbodyU.innerHTML = `<tr><td colspan="4" class="empty-state">No username attempt data recorded yet.</td></tr>`;
+                showEmptyRow(tbodyU, 4, 'No username attempt data recorded yet.');
             } else {
-                tbodyU.innerHTML = data.usernames.map(u => `
-                    <tr>
-                        <td><strong>${u.username}</strong></td>
-                        <td>${u.count}</td>
-                        <td><span class="badge badge-success">${u.success_count}</span></td>
-                        <td><span class="badge badge-danger">${u.failed_count}</span></td>
-                    </tr>
-                `).join('');
+                const rows = data.usernames.map(u => {
+                    const row = document.createElement('tr');
+                    const username = appendCell(row, u.username);
+                    username.replaceChildren(textElement('strong', u.username));
+                    appendCell(row, u.count);
+                    appendBadgeCell(row, u.success_count, 'badge-success');
+                    appendBadgeCell(row, u.failed_count, 'badge-danger');
+                    return row;
+                });
+                tbodyU.replaceChildren(...rows);
             }
 
+            // Password values are intentionally redacted and are never rendered.
             const tbodyP = document.getElementById('tbody-passwords');
-            if (!data.passwords || data.passwords.length === 0) {
-                tbodyP.innerHTML = `<tr><td colspan="2" class="empty-state">No password attempt data recorded yet.</td></tr>`;
-            } else {
-                tbodyP.innerHTML = data.passwords.map(p => `
-                    <tr>
-                        <td><code>${p.password}</code></td>
-                        <td><span class="badge badge-warning">${p.count}</span></td>
-                    </tr>
-                `).join('');
-            }
+            showEmptyRow(tbodyP, 2, 'Password values are intentionally redacted.');
         }
 
         async function fetchFullTimeline() {
@@ -1516,71 +1576,93 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
         }
 
         async function inspectSession(sessionId) {
-            const res = await fetch(`/api/sessions/${sessionId}`);
+            const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`);
             const data = await res.json();
             if (data.error) return;
 
             document.getElementById('modal-title').innerText = `Session Flow: ${sessionId}`;
             const body = document.getElementById('modal-body-content');
 
-            const s = data.session;
-            let html = `
-                <div style="margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px;">
-                    <p><strong>Source IP:</strong> <span style="color: var(--primary);">${s.src_ip}</span> | <strong>Destination Port:</strong> ${s.dst_port}</p>
-                    <p><strong>Started:</strong> ${s.start_time} | <strong>Duration:</strong> ${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</p>
-                </div>
-                <h4 style="margin-bottom: 10px; color: var(--primary);">Authentication Trials:</h4>
-            `;
+            const s = data.session || {};
+            const overview = document.createElement('div');
+            overview.style.cssText = 'margin-bottom:20px;background:rgba(0,0,0,0.2);padding:14px;border-radius:8px;';
+            const source = document.createElement('p');
+            const sourceValue = textElement('span', s.src_ip);
+            sourceValue.style.color = 'var(--primary)';
+            source.append(textElement('strong', 'Source IP: '), sourceValue, document.createTextNode(' | '),
+                textElement('strong', 'Destination Port: '), document.createTextNode(String(s.dst_port ?? '')));
+            const started = document.createElement('p');
+            started.append(textElement('strong', 'Started: '), document.createTextNode(String(s.start_time ?? '')),
+                document.createTextNode(' | '), textElement('strong', 'Duration: '),
+                document.createTextNode(s.duration_ms ? `${s.duration_ms} ms` : 'Active'));
+            overview.append(source, started);
 
+            const authHeading = textElement('h4', 'Authentication Trials:');
+            authHeading.style.cssText = 'margin-bottom:10px;color:var(--primary);';
+            const content = [overview, authHeading];
             if (!data.logins || data.logins.length === 0) {
-                html += `<p style="font-size: 13px; color: var(--text-dim);">No authentication events captured.</p>`;
+                content.push(textElement('p', 'No authentication events captured.'));
             } else {
-                html += `<table style="margin-bottom: 20px;"><thead><tr><th>Timestamp</th><th>Username</th><th>Password</th><th>Status</th></tr></thead><tbody>`;
-                html += data.logins.map(l => `
-                    <tr>
-                        <td>${l.timestamp}</td>
-                        <td>${l.username}</td>
-                        <td><code>${l.password}</code></td>
-                        <td>${l.success === 1 ? '<span class="badge badge-success">SUCCESS</span>' : '<span class="badge badge-danger">FAILED</span>'}</td>
-                    </tr>
-                `).join('');
-                html += `</tbody></table>`;
+                const loginRows = data.logins.map(login => {
+                    const row = document.createElement('tr');
+                    appendCell(row, login.timestamp);
+                    appendCell(row, login.username);
+                    appendCell(row, '[REDACTED]', '', true);
+                    appendBadgeCell(row, login.success === 1 ? 'SUCCESS' : 'FAILED', login.success === 1 ? 'badge-success' : 'badge-danger');
+                    return row;
+                });
+                const loginTable = makeTable(['Timestamp', 'Username', 'Password', 'Status'], loginRows);
+                loginTable.style.marginBottom = '20px';
+                content.push(loginTable);
             }
-
-            html += `<h4 style="margin-bottom: 10px; color: var(--primary);">Executed Shell Commands:</h4>`;
+            const commandHeading = textElement('h4', 'Executed Shell Commands:');
+            commandHeading.style.cssText = 'margin-bottom:10px;color:var(--primary);';
+            content.push(commandHeading);
             if (!data.commands || data.commands.length === 0) {
-                html += `<p style="font-size: 13px; color: var(--text-dim);">No command executions captured.</p>`;
+                content.push(textElement('p', 'No command executions captured.'));
             } else {
-                html += `<table><thead><tr><th>Timestamp</th><th>Executed Input</th><th>Identified Intent</th></tr></thead><tbody>`;
-                html += data.commands.map(c => `
-                    <tr>
-                        <td>${c.timestamp}</td>
-                        <td><code>${c.input}</code></td>
-                        <td><span style="color: var(--text-muted); font-size: 12px;">${c.meaning}</span></td>
-                    </tr>
-                `).join('');
-                html += `</tbody></table>`;
+                const commandRows = data.commands.map(command => {
+                    const row = document.createElement('tr');
+                    appendCell(row, command.timestamp);
+                    appendCell(row, command.input, '', true);
+                    const meaning = appendCell(row, command.meaning);
+                    meaning.style.color = 'var(--text-muted)';
+                    meaning.style.fontSize = '12px';
+                    return row;
+                });
+                content.push(makeTable(['Timestamp', 'Executed Input', 'Identified Intent'], commandRows));
             }
 
-            body.innerHTML = html;
+            body.replaceChildren(...content);
             document.getElementById('detail-modal').classList.add('active');
         }
 
         async function inspectIP(ip) {
-            const res = await fetch(`/api/ips/${ip}`);
+            const res = await fetch(`/api/ips/${encodeURIComponent(ip)}`);
             const data = await res.json();
             document.getElementById('modal-title').innerText = `IP Intelligence: ${ip}`;
             const body = document.getElementById('modal-body-content');
 
-            let html = `
-                <p style="margin-bottom: 16px;">Telemetry records for external origin address <strong style="color: var(--primary);">${ip}</strong>.</p>
-                <h4 style="margin-bottom: 10px; color: var(--primary);">Associated Sessions (${data.sessions.length}):</h4>
-                <table style="margin-bottom: 20px;"><thead><tr><th>Session ID</th><th>Port</th><th>Start Time</th><th>Duration</th></tr></thead><tbody>
-            `;
-            html += data.sessions.map(s => `<tr><td><code>${s.session_id}</code></td><td>${s.dst_port}</td><td>${s.start_time}</td><td>${s.duration_ms ? s.duration_ms + ' ms' : 'Active'}</td></tr>`).join('');
-            html += `</tbody></table>`;
-
-            body.innerHTML = html;
+            const sessions = data.sessions || [];
+            const description = document.createElement('p');
+            description.style.marginBottom = '16px';
+            const ipValue = textElement('strong', ip);
+            ipValue.style.color = 'var(--primary)';
+            description.append(document.createTextNode('Telemetry records for external origin address '), ipValue,
+                document.createTextNode('.'));
+            const rows = sessions.map(session => {
+                const row = document.createElement('tr');
+                appendCell(row, session.session_id, '', true);
+                appendCell(row, session.dst_port);
+                appendCell(row, session.start_time);
+                appendCell(row, session.duration_ms ? `${session.duration_ms} ms` : 'Active');
+                return row;
+            });
+            const heading = textElement('h4', `Associated Sessions (${sessions.length}):`);
+            heading.style.cssText = 'margin-bottom:10px;color:var(--primary);';
+            const sessionsTable = makeTable(['Session ID', 'Port', 'Start Time', 'Duration'], rows);
+            sessionsTable.style.marginBottom = '20px';
+            body.replaceChildren(description, heading, sessionsTable);
             document.getElementById('detail-modal').classList.add('active');
         }
 
@@ -1595,11 +1677,11 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
             isDownloadingPDF = true;
 
             const btn = document.getElementById('btn-download-pdf');
-            const originalText = btn ? btn.innerHTML : '📥 Download Executive PDF Report';
+            const originalText = btn ? btn.textContent : '📥 Download Executive PDF Report';
 
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '⏳ Generating PDF...';
+                btn.textContent = '⏳ Generating PDF...';
             }
 
             const rangeSelect = document.getElementById('report-range-select');
@@ -1648,10 +1730,10 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
                 }, 1000);
 
                 if (btn) {
-                    btn.innerHTML = '✓ Executive report downloaded';
+                    btn.textContent = '✓ Executive report downloaded';
                     setTimeout(() => {
                         btn.disabled = false;
-                        btn.innerHTML = originalText;
+                        btn.textContent = originalText;
                         isDownloadingPDF = false;
                     }, 3000);
                 } else {
@@ -1662,7 +1744,7 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
                 alert("Executive report generation failed. Please try again.");
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = originalText;
+                    btn.textContent = originalText;
                 }
                 isDownloadingPDF = false;
             }
@@ -1675,7 +1757,7 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
         async function previewReportModal() {
             const range = document.getElementById('report-range-select').value;
             const container = document.getElementById('report-preview-container');
-            container.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">Generating executive report preview from database...</p>`;
+            container.replaceChildren(textElement('p', 'Generating executive report preview from database...'));
 
             try {
                 const res = await fetch(`/api/report/preview?range=${range}`);
@@ -1684,71 +1766,79 @@ COWRIE_DB_TYPE=auto (MySQL or SQLite fallback)
                 const summaryText = (data.summary_obj && data.summary_obj.summary) ? data.summary_obj.summary : "No summary available.";
                 const botAssessment = (data.bot_info && data.bot_info.assessment) ? data.bot_info.assessment : "N/A";
                 const botScore = (data.bot_info && data.bot_info.automation_score !== undefined) ? data.bot_info.automation_score : 0;
+                const preview = document.createElement('div');
+                const header = document.createElement('div');
+                header.style.cssText = 'border-bottom:1px solid var(--border-bright);padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;';
+                const titleBlock = document.createElement('div');
+                const previewTitle = textElement('h3', '🛡️ HONEYWATCH EXECUTIVE THREAT REPORT PREVIEW');
+                previewTitle.style.cssText = 'font-size:18px;color:#ffffff;font-weight:700;';
+                const scope = textElement('p', `Telemetry Scope: ${String(range).toUpperCase()} | Report Date: ${data.generated_at}`);
+                scope.style.cssText = 'font-size:12px;color:var(--primary);';
+                titleBlock.append(previewTitle, scope);
+                const downloadButton = textElement('button', '📥 Download PDF', 'btn btn-primary btn-sm');
+                downloadButton.addEventListener('click', downloadPDFReport);
+                header.append(titleBlock, downloadButton);
 
-                let mitigationsHTML = "";
+                const metrics = document.createElement('div');
+                metrics.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;';
+                [
+                    ['TOTAL EVENTS', data.tot_events], ['UNIQUE IPs', data.unique_ips],
+                    ['SESSIONS', data.tot_sessions], ['LOGIN ATTEMPTS', data.tot_logins],
+                    ['BOT SCORE', `${botScore}/100`]
+                ].forEach(([label, value], index) => {
+                    const metric = document.createElement('div');
+                    metric.style.cssText = 'background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;border:1px solid var(--border-color);';
+                    const metricLabel = textElement('div', label);
+                    metricLabel.style.cssText = 'font-size:10px;color:var(--text-dim);font-weight:700;';
+                    const metricValue = textElement('div', value);
+                    const valueColor = ['#ffffff', 'var(--primary)', '#ffffff', 'var(--warning)', 'var(--purple)'][index];
+                    metricValue.style.cssText = `font-size:20px;font-weight:800;color:${valueColor};`;
+                    metric.append(metricLabel, metricValue);
+                    metrics.appendChild(metric);
+                });
+
+                const summary = document.createElement('section');
+                summary.style.cssText = 'background:rgba(15,23,42,0.8);border:1px solid var(--primary-glow);border-left:4px solid var(--primary);padding:16px;border-radius:8px;margin-bottom:16px;';
+                const summaryHeading = textElement('h4', '🤖 AI ATTACK SUMMARY (ai_summarizer.py)');
+                summaryHeading.style.cssText = 'font-size:14px;color:var(--primary);margin-bottom:8px;font-weight:700;';
+                const summaryParagraph = textElement('p', summaryText);
+                summaryParagraph.style.cssText = 'font-size:13px;color:var(--text-main);line-height:1.6;white-space:pre-wrap;';
+                summary.append(summaryHeading, summaryParagraph);
+                const mitigationSection = document.createElement('section');
+                mitigationSection.style.cssText = 'background:rgba(15,23,42,0.8);border:1px solid rgba(16,185,129,0.3);border-left:4px solid var(--success);padding:16px;border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.5;';
+                const mitigationHeading = textElement('h4', '🛡️ AI MITIGATION RECOMMENDATIONS (ai_mitigation.py)');
+                mitigationHeading.style.cssText = 'font-size:14px;color:var(--success);margin-bottom:10px;font-weight:700;';
+                mitigationSection.appendChild(mitigationHeading);
                 if (data.mitigations && data.mitigations.length > 0) {
-                    mitigationsHTML = data.mitigations.map((m, idx) => `
-                        <div style="margin-bottom: 8px;">
-                            <strong style="color: var(--success);">${idx + 1}. Recommendation: ${m.recommendation}</strong><br/>
-                            <span style="color: var(--text-muted); padding-left: 12px; display: inline-block;">Reason: ${m.reason}</span>
-                        </div>
-                    `).join('');
+                    data.mitigations.forEach((mitigation, idx) => {
+                        const item = document.createElement('div');
+                        item.style.marginBottom = '8px';
+                        const recommendation = textElement('strong', `${idx + 1}. Recommendation: ${mitigation.recommendation}`);
+                        recommendation.style.color = 'var(--success)';
+                        const reason = textElement('span', `Reason: ${mitigation.reason}`);
+                        reason.style.cssText = 'color:var(--text-muted);padding-left:12px;display:inline-block;';
+                        item.append(recommendation, document.createElement('br'), reason);
+                        mitigationSection.appendChild(item);
+                    });
                 } else {
-                    mitigationsHTML = `<span style="color: var(--text-dim);">No specific mitigations generated.</span>`;
+                    const noMitigations = textElement('span', 'No specific mitigations generated.');
+                    noMitigations.style.color = 'var(--text-dim)';
+                    mitigationSection.appendChild(noMitigations);
                 }
 
-                container.innerHTML = `
-                    <div style="border-bottom: 1px solid var(--border-bright); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h3 style="font-size: 18px; color: #ffffff; font-weight: 700;">🛡️ HONEYWATCH EXECUTIVE THREAT REPORT PREVIEW</h3>
-                            <p style="font-size: 12px; color: var(--primary);">Telemetry Scope: ${range.toUpperCase()} &nbsp;|&nbsp; Report Date: ${data.generated_at}</p>
-                        </div>
-                        <button class="btn btn-primary btn-sm" onclick="downloadPDFReport()">📥 Download PDF</button>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;">
-                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">TOTAL EVENTS</div>
-                            <div style="font-size: 20px; font-weight: 800; color: #ffffff;">${data.tot_events}</div>
-                        </div>
-                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">UNIQUE IPs</div>
-                            <div style="font-size: 20px; font-weight: 800; color: var(--primary);">${data.unique_ips}</div>
-                        </div>
-                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">SESSIONS</div>
-                            <div style="font-size: 20px; font-weight: 800; color: #ffffff;">${data.tot_sessions}</div>
-                        </div>
-                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">LOGIN ATTEMPTS</div>
-                            <div style="font-size: 20px; font-weight: 800; color: var(--warning);">${data.tot_logins}</div>
-                        </div>
-                        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                            <div style="font-size: 10px; color: var(--text-dim); font-weight: 700;">BOT SCORE</div>
-                            <div style="font-size: 20px; font-weight: 800; color: var(--purple);">${botScore}/100</div>
-                        </div>
-                    </div>
-
-                    <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--primary-glow); border-left: 4px solid var(--primary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                        <h4 style="font-size: 14px; color: var(--primary); margin-bottom: 8px; font-weight: 700;">🤖 AI ATTACK SUMMARY (ai_summarizer.py)</h4>
-                        <p style="font-size: 13px; color: var(--text-main); line-height: 1.6; white-space: pre-wrap;">${summaryText}</p>
-                    </div>
-
-                    <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(16, 185, 129, 0.3); border-left: 4px solid var(--success); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                        <h4 style="font-size: 14px; color: var(--success); margin-bottom: 10px; font-weight: 700;">🛡️ AI MITIGATION RECOMMENDATIONS (ai_mitigation.py)</h4>
-                        <div style="font-size: 13px; line-height: 1.5;">${mitigationsHTML}</div>
-                    </div>
-
-                    <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px;">
-                        <h4 style="font-size: 13px; color: var(--warning); margin-bottom: 6px;">🧠 BEHAVIORAL BOT / HUMAN ANALYSIS</h4>
-                        <p style="font-size: 12.5px; color: var(--text-muted);">
-                            <strong>Assessment:</strong> ${botAssessment} &nbsp;|&nbsp; 
-                            <strong>Automation Score:</strong> ${botScore}/100
-                        </p>
-                    </div>
-                `;
+                const behavior = document.createElement('section');
+                behavior.style.cssText = 'background:rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:14px;border-radius:8px;';
+                const behaviorHeading = textElement('h4', '🧠 BEHAVIORAL BOT / HUMAN ANALYSIS');
+                behaviorHeading.style.cssText = 'font-size:13px;color:var(--warning);margin-bottom:6px;';
+                const behaviorText = document.createElement('p');
+                behaviorText.style.cssText = 'font-size:12.5px;color:var(--text-muted);';
+                behaviorText.append(textElement('strong', 'Assessment: '), document.createTextNode(String(botAssessment)),
+                    document.createTextNode(' | '), textElement('strong', 'Automation Score: '), document.createTextNode(`${botScore}/100`));
+                behavior.append(behaviorHeading, behaviorText);
+                preview.append(header, metrics, summary, mitigationSection, behavior);
+                container.replaceChildren(preview);
             } catch (err) {
-                container.innerHTML = `<div style="color: var(--danger);">Failed to load report preview: ${err.message}</div>`;
+                container.replaceChildren(textElement('div', `Failed to load report preview: ${err.message}`));
             }
         }
 
