@@ -112,7 +112,7 @@ class DatabaseClient:
         """)
         conn.commit()
 
-    def execute_query(self, query, params=None, fetch="all"):
+    def execute_query(self, query, params=None, fetch="all", raise_on_error=False):
         conn = None
         try:
             conn, is_sqlite = self.get_connection()
@@ -134,6 +134,8 @@ class DatabaseClient:
             return res
         except Exception as e:
             print(f"[DB Error] Query execution failed: {e}")
+            if raise_on_error:
+                raise
             if fetch == "one":
                 return None
             elif fetch == "all":
