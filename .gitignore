@@ -16,6 +16,7 @@ cowrie/var/lib/
 
 # Database files
 *.sql
+!schema/mysql.sql
 *.sqlite
 *.db
 *.pdf

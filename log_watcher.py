@@ -31,6 +31,15 @@ def parse_timestamp(ts):
             return str(ts)
 
 
+def _ensure_session_exists(session_id):
+    """Create an empty session row when child telemetry arrives first."""
+    db.execute_query("""
+        INSERT INTO sessions (session_id, src_ip, src_port, dst_port, start_time, end_time, duration_ms)
+        VALUES (%s, NULL, NULL, NULL, NULL, NULL, NULL)
+        ON DUPLICATE KEY UPDATE session_id=VALUES(session_id)
+    """, (session_id,), fetch=None, raise_on_error=True)
+
+
 def process_event(e):
     eid = e.get("eventid", "")
     sid = e.get("session")
@@ -43,7 +52,7 @@ def process_event(e):
         db.execute_query("""
             INSERT INTO sessions (session_id, src_ip, src_port, dst_port, start_time, end_time, duration_ms)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE src_ip=VALUES(src_ip), start_time=VALUES(start_time)
+            ON DUPLICATE KEY UPDATE src_ip=VALUES(src_ip), src_port=VALUES(src_port), dst_port=VALUES(dst_port), start_time=VALUES(start_time)
         """, (sid, e.get("src_ip"), e.get("src_port"), e.get("dst_port"), ts_str, None, None), fetch=None, raise_on_error=True)
 
     elif eid == "cowrie.session.closed":
@@ -54,12 +63,14 @@ def process_event(e):
         """, (sid, None, None, None, None, ts_str, e.get("duration_ms")), fetch=None, raise_on_error=True)
 
     elif eid in ("cowrie.login.success", "cowrie.login.failed"):
+        _ensure_session_exists(sid)
         db.execute_query("""
             INSERT INTO login_attempts (session_id, username, password, success, timestamp)
             VALUES (%s, %s, %s, %s, %s)
         """, (sid, e.get("username"), e.get("password"), 1 if eid == "cowrie.login.success" else 0, ts_str), fetch=None, raise_on_error=True)
 
     elif eid == "cowrie.command.input":
+        _ensure_session_exists(sid)
         db.execute_query("""
             INSERT INTO commands (session_id, input, timestamp)
             VALUES (%s, %s, %s)
