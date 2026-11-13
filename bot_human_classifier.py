@@ -48,7 +48,7 @@ def get_bot_assessment():
         sid = cmd["session_id"]
         session_commands.setdefault(sid, []).append(cmd)
 
-    # FEATURE 1 - Command timing
+    # FEATURE 1 - Command timing (maximum 40 points)
     time_gaps = []
     for sid, cmd_list in session_commands.items():
         sorted_cmds = []
@@ -72,32 +72,30 @@ def get_bot_assessment():
         timing_score = 0
     else:
         fast_ratio = fast_commands / len(time_gaps)
-        timing_score = round(min(25, fast_ratio * 25))
+        timing_score = round(min(40, fast_ratio * 40))
 
-    # FEATURE 2 - Repeated command sequences
+    # FEATURE 2 - Repeated command sequences (maximum 40 points)
     sequence_counter = Counter()
     for sid, cmd_list in session_commands.items():
         seq = tuple(cmd["input"] for cmd in cmd_list if cmd.get("input"))
         if seq:
             sequence_counter[seq] += 1
 
-    repeated_sequences = sum(1 for count in sequence_counter.values() if count > 1)
+    repeated_sequences = sum(
+        1 for count in sequence_counter.values() if count > 1
+    )
     if len(sequence_counter) == 0:
         repetition_score = 0
     else:
-        repetition_score = round(min(25, (repeated_sequences / len(sequence_counter)) * 25))
+        repetition_ratio = repeated_sequences / len(sequence_counter)
+        repetition_score = round(min(40, repetition_ratio * 40))
 
-    # FEATURE 3 - Repeated source IPs
+    # FEATURE 3 - Repeated source IPs (context only; not scored)
     ip_counter = Counter(s["src_ip"] for s in sessions if s.get("src_ip"))
     repeated_ips = sum(1 for count in ip_counter.values() if count > 1)
+    source_score = 0
 
-    if len(sessions) <= 1:
-        source_score = 0
-    else:
-        repeated_session_ratio = sum(count - 1 for count in ip_counter.values() if count > 1) / len(sessions)
-        source_score = round(min(25, repeated_session_ratio * 25))
-
-    # FEATURE 4 - High session frequency
+    # FEATURE 4 - High session frequency (maximum 20 points)
     high_frequency_sessions = 0
     for ip in set(s["src_ip"] for s in sessions if s.get("src_ip")):
         ip_sessions = [s for s in sessions if s.get("src_ip") == ip]
@@ -119,14 +117,27 @@ def get_bot_assessment():
         frequency_score = 0
     else:
         frequency_ratio = high_frequency_sessions / max(1, len(sessions) - 1)
-        frequency_score = round(min(25, frequency_ratio * 25))
+        frequency_score = round(min(20, frequency_ratio * 20))
 
-    automation_score = timing_score + repetition_score + source_score + frequency_score
+    # Count indicators only when they contribute actual points.
+    scored_indicators = []
+
+    if timing_score > 0:
+        scored_indicators.append("timing")
+
+    if repetition_score > 0:
+        scored_indicators.append("repetition")
+
+    if frequency_score > 0:
+        scored_indicators.append("frequency")
+
+    active_indicators = len(scored_indicators)
+    automation_score = timing_score + repetition_score + frequency_score
 
     enough_sessions = len(sessions) >= 3
     enough_commands = len(commands) >= 10
 
-    if not enough_sessions or not enough_commands:
+    if not enough_sessions or not enough_commands or active_indicators < 2:
         assessment = "Insufficient Evidence"
     elif automation_score >= 60:
         assessment = "Likely Automated"
@@ -141,11 +152,11 @@ def get_bot_assessment():
     if repeated_sequences > 0:
         indicators.append(f"{repeated_sequences} repeated command sequence(s) were observed.")
     if repeated_ips > 0:
-        indicators.append("Multiple sessions originated from the same source IP.")
+        indicators.append("Multiple sessions originated from the same source IP (context only; not scored).")
     if high_frequency_sessions > 0:
         indicators.append("Multiple sessions occurred within 60 seconds.")
-    if not indicators:
-        indicators.append("No automation indicators were observed.")
+    if not fast_commands and not repeated_sequences and not high_frequency_sessions:
+        indicators.append("No scored automation indicators were observed.")
 
     return {
         "assessment": assessment,
