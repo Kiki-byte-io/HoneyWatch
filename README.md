@@ -457,6 +457,12 @@ After configuring the database and required services:
 python3 dashboard/app.py
 ```
 
+This direct launch starts the background log watcher by default. Set
+`HONEYWATCH_ENABLE_LOG_WATCHER=0` to disable it. Importing the Flask app through
+a WSGI server does not start the watcher. A WSGI deployment needs a separately
+managed long-running watcher runner, which HoneyWatch does not currently provide;
+running `log_watcher.py` directly performs only a single poll.
+
 Open:
 
 ``` text

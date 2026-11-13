@@ -1,16 +1,34 @@
-import unittest
+import importlib
 import json
 import os
 import sys
+import unittest
+from unittest.mock import patch
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "dashboard"))
 
-from app import app
+WATCHER_ENABLE_ENV = "HONEYWATCH_ENABLE_LOG_WATCHER"
+
+import app as dashboard_module
 
 class HoneyWatchTestCase(unittest.TestCase):
     def setUp(self):
-        self.app = app.test_client()
+        self.app = dashboard_module.app.test_client()
         self.app.testing = True
+
+    def test_import_does_not_start_watcher_when_enabled_by_default(self):
+        import log_watcher
+
+        try:
+            with patch.dict(os.environ, {WATCHER_ENABLE_ENV: "1"}):
+                with patch.object(
+                    log_watcher, "start_realtime_log_watcher"
+                ) as start_watcher:
+                    importlib.reload(dashboard_module)
+                    start_watcher.assert_not_called()
+        finally:
+            # Reload after both patches exit so the module holds the real function.
+            importlib.reload(dashboard_module)
 
     def test_index_page(self):
         response = self.app.get('/')

@@ -17,11 +17,17 @@ from log_watcher import start_realtime_log_watcher
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
-# Start automated real-time background log watcher thread (polls every 2s)
-try:
-    start_realtime_log_watcher(interval_seconds=2)
-except Exception as e:
-    print(f"[Realtime Log Watcher Warning] {e}")
+def _start_log_watcher_if_enabled():
+    """Start the watcher for direct launches unless explicitly disabled."""
+    disabled_values = {"0", "false", "no", "off"}
+    watcher_setting = os.environ.get("HONEYWATCH_ENABLE_LOG_WATCHER", "1")
+    if watcher_setting.strip().casefold() in disabled_values:
+        return
+
+    try:
+        start_realtime_log_watcher(interval_seconds=2)
+    except Exception as e:
+        print(f"[Realtime Log Watcher Warning] {e}")
 
 
 COMMAND_MEANINGS = {
@@ -504,4 +510,5 @@ def api_export_csv():
 
 
 if __name__ == "__main__":
+    _start_log_watcher_if_enabled()
     app.run(host="127.0.0.1", port=5000, debug=False)
