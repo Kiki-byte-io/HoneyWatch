@@ -17,6 +17,40 @@ from log_watcher import start_realtime_log_watcher
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
+# The dashboard has no authentication and is meant to be reached only from the
+# local machine. Rejecting unexpected Host headers blocks DNS-rebinding pages
+# from reading it through the browser.
+app.config["TRUSTED_HOSTS"] = [
+    h.strip()
+    for h in os.environ.get("HONEYWATCH_TRUSTED_HOSTS", "127.0.0.1,localhost").split(",")
+    if h.strip()
+]
+
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+@app.after_request
+def _set_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
+
+
+def _int_arg(name, default, minimum, maximum):
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(value, maximum))
+
+
+def _csv_safe(value):
+    """Stop spreadsheet apps from evaluating attacker-chosen values as formulas."""
+    if isinstance(value, str) and value.startswith(CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
 def _start_log_watcher_if_enabled():
     """Start the watcher for direct launches unless explicitly disabled."""
     disabled_values = {"0", "false", "no", "off"}
@@ -53,7 +87,11 @@ def index():
 @app.route("/api/dashboard/summary")
 def api_summary():
     try:
-        s_count = db.execute_query("SELECT COUNT(*) AS count FROM sessions", fetch="one")
+        # raise_on_error so an unreachable database reaches the error branch
+        # instead of being reported as a healthy, empty one.
+        s_count = db.execute_query(
+            "SELECT COUNT(*) AS count FROM sessions", fetch="one", raise_on_error=True
+        )
         tot_sessions = s_count["count"] if s_count else 0
 
         l_count = db.execute_query("SELECT COUNT(*) AS count FROM login_attempts", fetch="one")
@@ -127,10 +165,11 @@ def api_summary():
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
+        print(f"[Dashboard Summary Error] {e}")
         return jsonify({
             "status": "error",
             "db_connected": False,
-            "error_message": f"Unable to connect to monitoring database: {str(e)}",
+            "error_message": "Unable to connect to monitoring database. Check the server log for details.",
             "total_sessions": 0,
             "total_logins": 0,
             "total_commands": 0,
@@ -170,8 +209,8 @@ def api_intelligence():
 
 @app.route("/api/attacks")
 def api_attacks():
-    page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 25))
+    page = _int_arg("page", 1, 1, 100000)
+    limit = _int_arg("limit", 25, 1, 200)
     search = request.args.get("search", "").strip()
     ip_filter = request.args.get("ip", "").strip()
     event_type = request.args.get("event_type", "").strip()
@@ -236,8 +275,8 @@ def api_attacks():
 
 @app.route("/api/sessions")
 def api_sessions():
-    page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 20))
+    page = _int_arg("page", 1, 1, 100000)
+    limit = _int_arg("limit", 20, 1, 200)
     search = request.args.get("search", "").strip()
     offset = (page - 1) * limit
 
@@ -466,8 +505,7 @@ def api_report_pdf():
     except Exception as e:
         print(f"[PDF Generation Error] {e}")
         return jsonify({
-            "error": "Executive report generation failed. Please try again.",
-            "details": str(e)
+            "error": "Executive report generation failed. Please try again."
         }), 500
 
 
@@ -486,7 +524,7 @@ def api_export_csv():
     cw.writerow(["Session ID", "Source IP", "Destination Port", "Start Time", "End Time", "Duration (ms)", "Attempted Username", "Login Success"])
 
     for s in sessions:
-        cw.writerow([
+        cw.writerow([_csv_safe(v) for v in (
             s.get("session_id"),
             s.get("src_ip"),
             s.get("dst_port"),
@@ -495,7 +533,7 @@ def api_export_csv():
             s.get("duration_ms"),
             s.get("username"),
             s.get("success")
-        ])
+        )])
 
     output = io.BytesIO()
     output.write(si.getvalue().encode('utf-8'))
