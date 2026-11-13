@@ -32,7 +32,9 @@ def analyze_session(data):
 
     command_analysis = []
     for command in commands:
-        meaning = COMMAND_MEANINGS.get(command, "Standard interactive shell command.")
+        meaning = COMMAND_MEANINGS.get(
+            command, "Unrecognized command; no verified meaning available."
+        )
         command_analysis.append({
             "command": command,
             "meaning": meaning
@@ -43,7 +45,7 @@ def analyze_session(data):
     return {
         "session_id": session.get("session_id"),
         "source_ip": session.get("src_ip"),
-        "destination_port": session.get("dst_port", 2222),
+        "destination_port": session.get("dst_port"),
         "authentication": authentication,
         "successful_logins": successful_logins,
         "failed_logins": failed_logins,
