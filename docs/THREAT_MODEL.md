@@ -68,7 +68,7 @@ reproduction before it was fixed.
 | F2 | **CSV formula injection.** Attacker-chosen usernames such as `=HYPERLINK(...)` were exported verbatim and would execute when the CSV is opened in Excel or LibreOffice. | Medium | Fixed in `ab86293` |
 | F3 | **Error detail disclosure.** `/api/report/pdf` and `/api/dashboard/summary` returned raw exception text, which can include database user names and filesystem paths. | Low–Medium | Fixed in `ab86293` |
 | F4 | **False database health.** The summary endpoint always reported `db_connected: true`, because query errors were swallowed and returned as empty results. An outage looked like a quiet honeypot. | Medium (monitoring integrity) | Fixed in `ab86293` |
-| F5 | **Silent SQLite fallback.** With the default `COWRIE_DB_TYPE=auto`, an unreachable MySQL makes `db_client` create and use `cowrie_logs.db` beside the code without any warning. Running the test suite on a machine without MySQL creates this file. | Medium (config integrity) | **Open**. See R2. |
+| F5 | **Silent SQLite fallback.** With the default `COWRIE_DB_TYPE=auto`, an unreachable MySQL makes `db_client` create and use `cowrie_logs.db` beside the code without any warning. Running the test suite on a machine without MySQL creates this file. | Medium (config integrity) | Fixed: the default is now `mysql`; SQLite needs an explicit `COWRIE_SQLITE_PATH`/`COWRIE_DB_TYPE=sqlite`, and `auto` logs a warning when it falls back. |
 | F6 | **Unvalidated paging.** Non-integer `page`/`limit` raised HTTP 500, and negative values returned wrong slices. | Low | Fixed in `ab86293` |
 | F7 | **No Host header validation.** This allowed DNS rebinding against the unauthenticated localhost dashboard. | Low–Medium | Fixed in `ab86293` (`TRUSTED_HOSTS`) |
 | F8 | **Report integrity issues.** The PDF crashed on markup in attacker text, local time was labelled as UTC, and the report didn't disclose that its intelligence sections ignore the date-range filter. | Medium | Fixed in `2382fbf` |
@@ -115,7 +115,7 @@ reproduction before it was fixed.
 | # | Recommendation | Priority |
 |---|---|---|
 | R1 | Offset persistence is implemented (`09bd93e`). Next, verify a dashboard restart on the Ubuntu VM ingests nothing new, then run the **read-only** duplicate check on `cowrie_logs` (below) before deciding whether existing data needs cleaning. | **Verify next** |
-| R2 | Default `COWRIE_DB_TYPE` to `mysql`, keep SQLite as an explicit opt-in (`COWRIE_DB_TYPE=sqlite`), and log a warning when it is used. The watcher's `ON DUPLICATE KEY` SQL is MySQL-only anyway, so ingestion silently fails in fallback mode. | High |
+| R2 | Done. Note that the watcher's `ON DUPLICATE KEY` SQL is MySQL-only, so real-time ingestion does not work in SQLite mode. SQLite serves only the demo seed data and the tests. | — |
 | R3 | Split database privileges: a read-only account for the dashboard (`SELECT`) and a writer for the watcher (`SELECT, INSERT, UPDATE` on the three tables only). | Medium |
 | R4 | Pin dependency versions (`requirements.txt` is unpinned) and run `pip-audit` in CI. | Medium |
 | R5 | Remove the watcher's `LOCAL_LOG_GLOB` fallback, which ingests any `cowrie*.json*` file in the project directory when the main log path is empty. | Medium |

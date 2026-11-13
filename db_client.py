@@ -1,15 +1,24 @@
 import os
+import logging
 import sqlite3
 import mysql.connector
+
+logger = logging.getLogger(__name__)
 
 # Database Configuration from Environment
 DB_HOST = os.getenv("COWRIE_DB_HOST", "localhost")
 DB_USER = os.getenv("COWRIE_DB_USER", "cowrie_app")
 DB_PASSWORD = os.getenv("COWRIE_DB_PASSWORD", "")
 DB_NAME = os.getenv("COWRIE_DB_NAME", "cowrie_logs")
-DB_TYPE = os.getenv("COWRIE_DB_TYPE", "auto")  # 'mysql', 'sqlite', or 'auto'
+# 'mysql' (default), 'sqlite' (explicit local demo), or 'auto' (MySQL, falling
+# back to SQLite with a warning). Silent fallback hid outages and wrote
+# telemetry to an unexpected store, so it is no longer the default.
+DB_TYPE = os.getenv("COWRIE_DB_TYPE", "mysql")
 
-SQLITE_PATH = os.path.join(os.path.dirname(__file__), "cowrie_logs.db")
+SQLITE_PATH = os.getenv(
+    "COWRIE_SQLITE_PATH",
+    os.path.join(os.path.dirname(__file__), "cowrie_logs.db"),
+)
 
 
 class DictCursor:
@@ -70,6 +79,10 @@ class DatabaseClient:
             except Exception as e:
                 if DB_TYPE == "mysql":
                     raise e
+                logger.warning(
+                    "MySQL unavailable (%s); COWRIE_DB_TYPE=auto is falling back to SQLite at %s",
+                    type(e).__name__, SQLITE_PATH,
+                )
 
         # Fallback to SQLite
         self.db_type = "sqlite"

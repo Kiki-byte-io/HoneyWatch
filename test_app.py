@@ -10,8 +10,26 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "dashboard"))
 WATCHER_ENABLE_ENV = "HONEYWATCH_ENABLE_LOG_WATCHER"
 
 import app as dashboard_module
+import db_client
+import tempfile
 
 class HoneyWatchTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # These are smoke tests of the HTTP layer. Point them at a throwaway
+        # SQLite file so they never read a real telemetry database, and
+        # restore the module settings because the MySQL integration tests
+        # reject a db_client configuration that differs from the environment.
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls._saved = (db_client.DB_TYPE, db_client.SQLITE_PATH)
+        db_client.DB_TYPE = "sqlite"
+        db_client.SQLITE_PATH = os.path.join(cls._tmp.name, "test_app.db")
+
+    @classmethod
+    def tearDownClass(cls):
+        db_client.DB_TYPE, db_client.SQLITE_PATH = cls._saved
+        cls._tmp.cleanup()
+
     def setUp(self):
         self.app = dashboard_module.app.test_client()
         self.app.testing = True
