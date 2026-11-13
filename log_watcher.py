@@ -1,10 +1,12 @@
 import os
 import glob
 import json
+import base64
 import logging
 import time
 import threading
 from datetime import datetime
+import db_client
 from db_client import db
 
 LOG_GLOB = os.getenv(
@@ -17,6 +19,52 @@ LOCAL_LOG_GLOB = os.path.join(os.path.dirname(__file__), "cowrie*.json*")
 # does not make its already-read contents look like a new log.
 FILE_OFFSETS = {}
 logger = logging.getLogger(__name__)
+
+# Login and command rows have no natural unique key, so offsets must survive a
+# restart; otherwise every restart re-reads and re-inserts the whole log.
+STATE_PATH = os.getenv(
+    "HONEYWATCH_WATCHER_STATE",
+    os.path.expanduser("~/.honeywatch/watcher_state.json"),
+)
+
+
+def _database_identity():
+    return f"{db_client.DB_TYPE}:{db_client.DB_NAME}"
+
+
+def load_offsets(state_path):
+    """Merge saved offsets into memory, ignoring state for another database."""
+    try:
+        with open(state_path, "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        if saved.get("database") != _database_identity():
+            logger.warning("Ignoring watcher state recorded for a different database")
+            return
+        for key, (offset, last_line_b64) in saved.get("offsets", {}).items():
+            dev, ino = (int(part) for part in key.split(":"))
+            FILE_OFFSETS.setdefault((dev, ino), (int(offset), base64.b64decode(last_line_b64)))
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError, TypeError, AttributeError) as err:
+        logger.warning("Ignoring unreadable watcher state %s: %s", state_path, err)
+
+
+def save_offsets(state_path):
+    """Atomically write offsets so a crash never leaves a half-written file."""
+    payload = {
+        "database": _database_identity(),
+        "offsets": {
+            f"{dev}:{ino}": [offset, base64.b64encode(last_line).decode("ascii")]
+            for (dev, ino), (offset, last_line) in FILE_OFFSETS.items()
+        },
+    }
+    directory = os.path.dirname(state_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    tmp_path = state_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    os.replace(tmp_path, state_path)
 
 
 def parse_timestamp(ts):
@@ -155,13 +203,31 @@ def poll_logs_once():
     return processed_count
 
 
-def start_realtime_log_watcher(interval_seconds=2):
+def _poll_and_save(state_path):
+    before = dict(FILE_OFFSETS)
+    processed = poll_logs_once()
+    if FILE_OFFSETS != before:
+        save_offsets(state_path)
+    return processed
+
+
+def run_single_poll(state_path=None):
+    """One resumable poll: load saved offsets, poll, persist progress."""
+    state_path = state_path or STATE_PATH
+    load_offsets(state_path)
+    return _poll_and_save(state_path)
+
+
+def start_realtime_log_watcher(interval_seconds=2, state_path=None):
     """Starts a background daemon thread that polls Cowrie JSON logs continuously every N seconds."""
+    state_path = state_path or STATE_PATH
+
     def watch_loop():
         print(f"[Realtime Watcher] Log watcher service active. Polling logs every {interval_seconds}s...")
+        load_offsets(state_path)
         while True:
             try:
-                processed_events = poll_logs_once()
+                processed_events = _poll_and_save(state_path)
                 if processed_events > 0:
                     print(f"[Realtime Watcher] Processed {processed_events} new Cowrie log events.")
             except Exception as e:
@@ -174,5 +240,5 @@ def start_realtime_log_watcher(interval_seconds=2):
 
 
 if __name__ == "__main__":
-    count = poll_logs_once()
+    count = run_single_poll()
     print(f"Manual Log Poll Complete: {count} new log events processed.")
