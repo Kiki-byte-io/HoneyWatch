@@ -64,7 +64,7 @@ reproduction before it was fixed.
 
 | # | Finding | Severity (lab context) | Status |
 |---|---|---|---|
-| F1 | **Watcher restart duplicates data.** File offsets are kept only in memory, and `login_attempts`/`commands` have no natural unique key. Restarting the dashboard re-reads every log from byte 0 and inserts every login and command again, which inflates all counts, the classifier and reports. | **High (integrity)** | Fixed in `09bd93e` (offsets persisted per database). Not yet verified on the Ubuntu VM; rows that past restarts already duplicated in `cowrie_logs` are untouched. See the read-only check below. |
+| F1 | **Watcher restart duplicates data.** File offsets are kept only in memory, and `login_attempts`/`commands` have no natural unique key. Restarting the dashboard re-reads every log from byte 0 and inserts every login and command again, which inflates all counts, the classifier and reports. | **High (integrity)** | Fixed in `09bd93e` (offsets persisted per database). **Verified on the Ubuntu VM (15 Nov 2026)** against the isolated test database: the first run processed 3 events and a restart processed 0. Rows that past restarts already duplicated in `cowrie_logs` are untouched; see the read-only check below. |
 | F2 | **CSV formula injection.** Attacker-chosen usernames such as `=HYPERLINK(...)` were exported verbatim and would execute when the CSV is opened in Excel or LibreOffice. | Medium | Fixed in `ab86293` |
 | F3 | **Error detail disclosure.** `/api/report/pdf` and `/api/dashboard/summary` returned raw exception text, which can include database user names and filesystem paths. | Low–Medium | Fixed in `ab86293` |
 | F4 | **False database health.** The summary endpoint always reported `db_connected: true`, because query errors were swallowed and returned as empty results. An outage looked like a quiet honeypot. | Medium (monitoring integrity) | Fixed in `ab86293` |
@@ -114,7 +114,7 @@ reproduction before it was fixed.
 
 | # | Recommendation | Priority |
 |---|---|---|
-| R1 | Offset persistence is implemented (`09bd93e`). Next, verify a dashboard restart on the Ubuntu VM ingests nothing new, then run the **read-only** duplicate check on `cowrie_logs` (below) before deciding whether existing data needs cleaning. | **Verify next** |
+| R1 | Offset persistence is implemented (`09bd93e`) and its restart behaviour is verified on the VM. Remaining: run the **read-only** duplicate check on `cowrie_logs` (below) before deciding whether existing data needs cleaning, and save a baseline before the first live start. | **Next** |
 | R2 | Done. Note that the watcher's `ON DUPLICATE KEY` SQL is MySQL-only, so real-time ingestion does not work in SQLite mode. SQLite serves only the demo seed data and the tests. | — |
 | R3 | Split database privileges: a read-only account for the dashboard (`SELECT`) and a writer for the watcher (`SELECT, INSERT, UPDATE` on the three tables only). | Medium |
 | R4 | Pin dependency versions (`requirements.txt` is unpinned) and run `pip-audit` in CI. | Medium |
