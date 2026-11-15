@@ -44,7 +44,10 @@ class SummaryBaseTestCase(unittest.TestCase):
 
 class NoEvidenceTests(SummaryBaseTestCase):
     def test_none_evidence_returns_safe_placeholder(self):
-        result = generate_summary(None)
+        # None makes generate_summary fetch the latest session itself;
+        # stub that lookup so the unit test never reaches a database.
+        with patch("ai_summarizer.get_evidence", return_value=None):
+            result = generate_summary(None)
         self.assertIn("No Cowrie honeypot sessions", result["summary"])
         self.assertEqual(result["observed_commands"], [])
 

@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from ai_mitigation import generate_mitigations
 
@@ -19,7 +20,10 @@ def make_evidence(**overrides):
 
 class MitigationTests(unittest.TestCase):
     def test_no_evidence_returns_no_recommendations(self):
-        self.assertEqual(generate_mitigations(None), [])
+        # None makes generate_mitigations fetch the latest session itself;
+        # stub that lookup so the unit test never reaches a database.
+        with patch("ai_mitigation.get_evidence", return_value=None):
+            self.assertEqual(generate_mitigations(None), [])
 
     def test_quiet_session_returns_no_recommendations(self):
         self.assertEqual(generate_mitigations(make_evidence()), [])
