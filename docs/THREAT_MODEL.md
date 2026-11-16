@@ -116,9 +116,9 @@ reproduction before it was fixed.
 
 | # | Recommendation | Priority |
 |---|---|---|
-| R1 | Offset persistence is implemented (`09bd93e`) and its restart behaviour is verified on the VM. Remaining: run the **read-only** duplicate check on `cowrie_logs` (below) before deciding whether existing data needs cleaning, and save a baseline before the first live start. | **Next** |
+| R1 | Done and verified live (16 Nov 2026). The first dashboard start against `cowrie_logs` read the full log (16 events); a dedupe left counts unchanged at 12 commands and 2 logins, so nothing was missing; a restart processed nothing. | — |
 | R2 | Done. Note that the watcher's `ON DUPLICATE KEY` SQL is MySQL-only, so real-time ingestion does not work in SQLite mode. SQLite serves only the demo seed data and the tests. | — |
-| R3 | Split database privileges: a read-only account for the dashboard (`SELECT`) and a writer for the watcher (`SELECT, INSERT, UPDATE` on the three tables only). | Medium |
+| R3 | Partly done: `cowrie_app` is now limited to `SELECT`/`INSERT` (plus `UPDATE` on `sessions`). Still open: a separate read-only account for the dashboard. | Low |
 | R4 | Pin dependency versions (`requirements.txt` is unpinned) and run `pip-audit` in CI. | Medium |
 | R5 | Remove the watcher's `LOCAL_LOG_GLOB` fallback, which ingests any `cowrie*.json*` file in the project directory when the main log path is empty. | Medium |
 | R6 | Cap result sizes server-side: several endpoints load whole tables into memory on every request. | Low |
